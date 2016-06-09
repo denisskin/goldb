@@ -53,6 +53,11 @@ func (q *Query) OrderDesc() *Query {
 	return q
 }
 
+func (q *Query) Order(desc bool) *Query {
+	q.desc = desc
+	return q
+}
+
 func (q *Query) FilterRecord(fn func(id uint64) bool) *Query {
 	q.recFilter = fn
 	return q

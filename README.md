@@ -1,0 +1,2 @@
+# goldb
+Go LevelDB

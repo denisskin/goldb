@@ -66,7 +66,13 @@ func DecodeData(data []byte, v interface{}) error {
 	return r.Error()
 }
 
-func decodeID(data []byte) (uint64, error) {
+func EncodeID(id uint64) []byte {
+	buf := bin.NewBuffer(nil)
+	buf.WriteVar(id)
+	return buf.Bytes()
+}
+
+func DecodeID(data []byte) (uint64, error) {
 	r := bin.NewBuffer(data)
 	return r.ReadVarUint()
 }

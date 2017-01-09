@@ -1,20 +1,19 @@
 package goldb
 
 import (
+	"bytes"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
-type Context interface {
-	NewQuery(idxID Entity, filterVal ...interface{}) *Query
-	Get(pk key, v interface{}) (bool, error)
-	GetUint(k key) (v uint64, err error)
-}
-
-type context struct {
-	qCtx queryContext
+// Context is context of reading data via get or fetch-methods.
+// Context is implemented by Transaction and Storage
+type Context struct {
+	qCtx         queryContext
+	ReadOptions  *opt.ReadOptions
+	WriteOptions *opt.WriteOptions
 }
 
 type queryContext interface {
@@ -22,38 +21,143 @@ type queryContext interface {
 	NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator
 }
 
-func (c *context) NewQuery(idxID Entity, filterVal ...interface{}) *Query {
-	return newQuery(c.qCtx, idxID, filterVal...)
+// Get returns raw data by key
+func (c *Context) Get(k key) ([]byte, error) {
+	data, err := c.qCtx.Get(k.bytes(), c.ReadOptions)
+	if err != nil && err != leveldb.ErrNotFound {
+		return nil, nil
+	}
+	return data, err
 }
 
-func (c *context) getVal(pk key, v interface{}) (bool, error) {
-	data, err := c.qCtx.Get(pk.bytes(), nil)
+// GetID returns uint64-data by key
+func (c *Context) GetID(k key) (id uint64, err error) {
+	data, err := c.Get(k)
+	if err == nil {
+		id, err = DecodeID(data)
+	}
+	return
+}
 
-	if err != nil && err != leveldb.ErrNotFound {
-		//log.Printf("      !!! LevelDB.GET-ERROR: %v", err)
+// GetVar get data by key and unmarshal to to variable;
+// Returns true when data by key existed
+func (c *Context) GetVar(k key, v interface{}) (bool, error) {
+	data, err := c.Get(k)
+	if err == leveldb.ErrNotFound {
+		return false, nil
 	}
 	if err == nil {
 		err = DecodeData(data, v)
 	}
 	if err != nil {
-		if err == leveldb.ErrNotFound {
-			return false, nil
-		}
 		return false, err
 	}
 	return true, nil
 }
 
-func (c *context) Get(pk key, v interface{}) (bool, error) {
-	return c.getVal(pk, v)
+// FetchIDs iterates through records by query
+func (c *Context) Fetch(q *Query, fnRow func(value []byte) error) error {
+	return c.execute(q, fnRow)
 }
 
-func (c *context) GetUint(k key) (v uint64, err error) {
-	_, err = c.getVal(k, &v)
+// FetchIDs iterates records with row-id by query
+func (c *Context) FetchIDs(q *Query, fnRow func(id uint64) error) error {
+	return c.execute(q, func(v []byte) error {
+		if id, err := DecodeID(v); err != nil {
+			return err
+		} else {
+			return fnRow(id)
+		}
+	})
+}
+
+// QueryIDs returns slice of row-id by query
+func (c *Context) QueryIDs(q *Query) (ids []uint64, err error) {
+	err = c.FetchIDs(q, func(id uint64) error {
+		ids = append(ids, id)
+		return nil
+	})
 	return
 }
 
-func (c *context) GetInt(k key) (v uint64, err error) {
-	_, err = c.getVal(k, &v)
+// QueryID returns first row-id by query
+func (c *Context) QueryID(q *Query) (id uint64, err error) {
+	q.Limit(1)
+	ids, err := c.QueryIDs(q)
+	if len(ids) > 0 {
+		return ids[0], err
+	}
+	return 0, err
+}
+
+//------ private ------
+var tail1024 = bytes.Repeat([]byte{255}, 1024)
+
+func (c *Context) execute(q *Query, fnRow func([]byte) error) (err error) {
+	q.NumRows = 0
+	pfx := q.filter
+	pfxLen := len(pfx)
+	start := append(pfx, q.offset...)
+	nStart := len(start)
+	limit := q.limit
+	skipFirst := len(q.offset) > 0
+
+	var iter iterator.Iterator
+	var iterNext func() bool
+	var rowID uint64
+	fnRecordFilter := q.recFilter
+
+	if !q.desc { // ask
+		iter = c.qCtx.NewIterator(&util.Range{Start: start}, nil)
+		iterNext = func() bool { return iter.Next() }
+
+	} else { // desc
+		iter = c.qCtx.NewIterator(nil, nil)
+		iter.Seek(append(start, tail1024...))
+		iterNext = func() bool { return iter.Prev() }
+	}
+
+	defer func() {
+		iter.Release()
+		if err == nil {
+			err = iter.Error()
+		}
+	}()
+
+	for limit > 0 && iterNext() {
+		key := iter.Key()
+		if !bytes.HasPrefix(key, pfx) {
+			break
+		}
+		if skipFirst { // skip first record if record.key == startOffset
+			//if q.strongOffset { // todo: use only strong compare (returns actual offset after each query)
+			//	skipFirst = false
+			//	if bytes.Equal(key, start) {
+			//		continue
+			//	}
+			//} else {
+			if len(key) >= nStart && bytes.Equal(key[:nStart], start) {
+				continue
+			}
+			skipFirst = false
+			//}
+		}
+		val := iter.Value()
+		if fnRecordFilter != nil {
+			if rowID, err = DecodeID(val); err != nil {
+				break
+			} else if !fnRecordFilter(rowID) {
+				continue
+			}
+		}
+		q.offset = key[pfxLen:]
+		limit--
+		if fnRow != nil {
+			if err = fnRow(val); err != nil {
+				break
+			}
+		}
+		q.NumRows++
+	}
 	return
 }

@@ -2,20 +2,24 @@ package goldb
 
 import (
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 	"os"
 	"path/filepath"
 )
 
 type Storage struct {
-	context
-	seq uint64
+	Context
 	dir string
 	db  *leveldb.DB
+	op  *opt.Options
+	seq map[Entity]uint64
 }
 
-func NewStorage(dir string) *Storage {
+func NewStorage(dir string, op *opt.Options) *Storage {
 	s := &Storage{
 		dir: dir,
+		op:  op,
+		seq: map[Entity]uint64{},
 	}
 	if err := s.Open(); err != nil {
 		panic(err)
@@ -25,14 +29,13 @@ func NewStorage(dir string) *Storage {
 
 func (s *Storage) Open() error {
 	// TODO: RecoverFile ???
-	//opt.Options{}
 
-	db, err := leveldb.OpenFile(s.dir, nil)
+	db, err := leveldb.OpenFile(s.dir, s.op)
 	if err != nil {
 		return err
 	}
 	s.db = db
-	s.context.qCtx = db
+	s.Context.qCtx = db
 	return nil
 }
 
@@ -67,13 +70,16 @@ func (s *Storage) Size() (size uint64) {
 	return
 }
 
-func (s *Storage) Exec(fn func(*Transaction)) (err error) {
+// Exec executes transaction.
+// The executing transaction can be discard by methods tx.Fail(err) or by panic(err)
+func (s *Storage) Exec(fn func(tx *Transaction)) (err error) {
+	t := s.OpenTransaction()
 	defer func() {
 		if e, _ := recover().(error); e != nil {
+			t.Discard()
 			err = e
 		}
 	}()
-	t := s.OpenTransaction()
 	if t.err != nil {
 		return t.err
 	}
@@ -86,6 +92,7 @@ func (s *Storage) Exec(fn func(*Transaction)) (err error) {
 	return t.err
 }
 
+// OpenTransaction opens transaction
 func (s *Storage) OpenTransaction() *Transaction {
 	return newTransaction(s)
 }

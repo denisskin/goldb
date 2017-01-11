@@ -9,7 +9,7 @@ type Entity int
 
 type key []byte
 
-func pkey(tableID Entity, id uint64) key {
+func PKey(tableID Entity, id uint64) key {
 	return append(encKey(int(tableID)), encKey(id)...)
 }
 

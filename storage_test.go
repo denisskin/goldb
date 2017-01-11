@@ -126,7 +126,7 @@ func TestTransaction_Discard(t *testing.T) {
 	assert.Equal(t, "", b.v)
 }
 
-func TestTransaction_IncSequence(t *testing.T) {
+func TestTransaction_SequenceNextVal(t *testing.T) {
 	store := NewStorage(fmt.Sprintf("/tmp/test-goldb-%x.db", rand.Int()), nil)
 	defer store.Drop()
 

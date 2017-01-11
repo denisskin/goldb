@@ -1,8 +1,6 @@
 package goldb
 
-import (
-	"github.com/syndtr/goleveldb/leveldb"
-)
+import "github.com/syndtr/goleveldb/leveldb"
 
 type Transaction struct {
 	Context

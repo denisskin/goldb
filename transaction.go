@@ -45,7 +45,7 @@ func (t *Transaction) Fail(err error) {
 
 const tabSequences Entity = 0x7fffffff
 
-func (t *Transaction) GetSequence(tab Entity) (seq uint64) {
+func (t *Transaction) SequenceCurVal(tab Entity) (seq uint64) {
 	var key = Key(tabSequences, int(tab))
 	if seq = t.storage.seq[tab]; seq != 0 {
 		return
@@ -58,8 +58,8 @@ func (t *Transaction) GetSequence(tab Entity) (seq uint64) {
 	return
 }
 
-func (t *Transaction) IncSequence(tab Entity) (seq uint64) {
-	seq = t.GetSequence(tab) + 1
+func (t *Transaction) SequenceNextVal(tab Entity) (seq uint64) {
+	seq = t.SequenceCurVal(tab) + 1
 	var key = Key(tabSequences, int(tab))
 	t.PutVar(key, seq)
 	t.storage.seq[tab] = seq

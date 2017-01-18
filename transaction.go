@@ -76,8 +76,21 @@ func (t *Transaction) PutID(key []byte, id uint64) error {
 	return t.Put(key, EncodeID(id))
 }
 
+func (t *Transaction) PutInt(key []byte, num int64) error {
+	return t.PutVar(key, num)
+}
+
 func (t *Transaction) PutVar(key []byte, v interface{}) error {
 	return t.Put(key, EncodeData(v))
+}
+
+// Increment increments int-value by key
+func (t *Transaction) IncInt(key []byte, inc int64) (v int64, err error) {
+	if _, err = t.GetVar(key, &v); err == nil {
+		v += inc
+		err = t.Put(key, EncodeData(v))
+	}
+	return
 }
 
 func (t *Transaction) Del(key []byte) error {

@@ -3,6 +3,7 @@ package goldb
 import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -15,16 +16,25 @@ type Storage struct {
 	seq map[Entity]uint64
 }
 
-func NewStorage(dir string, op *opt.Options) *Storage {
-	s := &Storage{
+func NewStorage(dir string, op *opt.Options) (s *Storage) {
+	s = &Storage{
 		dir: dir,
 		op:  op,
 		seq: map[Entity]uint64{},
 	}
+	if err := s.Open(); err == nil {
+		return
+	}
+
+	// try to recover files
+	if err := s.Recover(); err != nil {
+		log.Println("!!! db.Storage.Recover-ERROR: ", err)
+	}
 	if err := s.Open(); err != nil {
 		panic(err)
 	}
-	return s
+
+	return
 }
 
 func (s *Storage) Open() error {
@@ -39,11 +49,27 @@ func (s *Storage) Open() error {
 	return nil
 }
 
+func (s *Storage) Recover() error {
+	if db, err := leveldb.RecoverFile(s.dir, nil); err != nil {
+		return err
+	} else {
+		return db.Close()
+	}
+}
+
 func (s *Storage) Close() error {
-	return s.db.Close()
+	if s.db != nil {
+		if err := s.db.Close(); err != leveldb.ErrClosed {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Storage) Truncate() error {
+	tr, _ := s.db.OpenTransaction()
+	defer tr.Discard()
+
 	if err := s.Drop(); err != nil {
 		return err
 	}
@@ -54,10 +80,7 @@ func (s *Storage) Drop() error {
 	if err := s.Close(); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(s.dir); err != nil {
-		return err
-	}
-	return nil
+	return os.RemoveAll(s.dir)
 }
 
 func (s *Storage) Size() (size uint64) {

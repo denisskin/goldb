@@ -7,13 +7,11 @@ import (
 
 type Entity int
 
-type key []byte
-
-func PKey(tableID Entity, id uint64) key {
+func PKey(tableID Entity, id uint64) []byte {
 	return append(encKey(int(tableID)), encKey(id)...)
 }
 
-func Key(entityID Entity, v ...interface{}) key {
+func Key(entityID Entity, v ...interface{}) []byte {
 	k := encKey(int(entityID))
 	for _, val := range v {
 		k = append(k, encKey(val)...)
@@ -21,17 +19,13 @@ func Key(entityID Entity, v ...interface{}) key {
 	return k
 }
 
-func HashKey(entityID Entity, v ...interface{}) key {
+func HashKey(entityID Entity, v ...interface{}) []byte {
 	k := encKey(int(entityID))
 	for _, val := range v {
 		hash := sha256.Sum256(append(k, encKey(val)...))
 		k = hash[:]
 	}
 	return k
-}
-
-func (k key) bytes() []byte {
-	return []byte(k)
 }
 
 func encKey(v interface{}) []byte {

@@ -22,8 +22,8 @@ type queryContext interface {
 }
 
 // Get returns raw data by key
-func (c *Context) Get(k key) ([]byte, error) {
-	data, err := c.qCtx.Get(k.bytes(), c.ReadOptions)
+func (c *Context) Get(key []byte) ([]byte, error) {
+	data, err := c.qCtx.Get(key, c.ReadOptions)
 	if err != nil && err != leveldb.ErrNotFound {
 		return nil, nil
 	}
@@ -31,14 +31,14 @@ func (c *Context) Get(k key) ([]byte, error) {
 }
 
 // GetNum returns uint64-data by key
-func (c *Context) GetInt(k key) (num int64, err error) {
-	_, err = c.GetVar(k, &num)
+func (c *Context) GetInt(key []byte) (num int64, err error) {
+	_, err = c.GetVar(key, &num)
 	return
 }
 
 // GetID returns uint64-data by key
-func (c *Context) GetID(k key) (id uint64, err error) {
-	data, err := c.Get(k)
+func (c *Context) GetID(key []byte) (id uint64, err error) {
+	data, err := c.Get(key)
 	if err == nil {
 		id, err = DecodeID(data)
 	}
@@ -47,8 +47,8 @@ func (c *Context) GetID(k key) (id uint64, err error) {
 
 // GetVar get data by key and unmarshal to to variable;
 // Returns true when data by key existed
-func (c *Context) GetVar(k key, v interface{}) (bool, error) {
-	data, err := c.Get(k)
+func (c *Context) GetVar(key []byte, v interface{}) (bool, error) {
+	data, err := c.Get(key)
 	if err == leveldb.ErrNotFound {
 		return false, nil
 	}

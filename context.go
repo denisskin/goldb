@@ -61,13 +61,13 @@ func (c *Context) GetVar(key []byte, v interface{}) (bool, error) {
 	return true, nil
 }
 
-// FetchIDs iterates through records by query
+// Fetch fetches raw-data by query
 func (c *Context) Fetch(q *Query, fnRow func(value []byte) error) error {
 	return c.execute(q, fnRow)
 }
 
-// FetchIDs iterates records with row-id by query
-func (c *Context) FetchIDs(q *Query, fnRow func(id uint64) error) error {
+// FetchID fetches uint64-ID by query
+func (c *Context) FetchID(q *Query, fnRow func(id uint64) error) error {
 	return c.execute(q, func(v []byte) error {
 		if id, err := DecodeID(v); err != nil {
 			return err
@@ -77,9 +77,20 @@ func (c *Context) FetchIDs(q *Query, fnRow func(id uint64) error) error {
 	})
 }
 
+// FetchObject fetches object by query
+func (c *Context) FetchObject(q *Query, obj interface{}, fnRow func() error) error {
+	return c.execute(q, func(data []byte) error {
+		if err := DecodeData(data, obj); err != nil {
+			return err
+		} else {
+			return fnRow()
+		}
+	})
+}
+
 // QueryIDs returns slice of row-id by query
 func (c *Context) QueryIDs(q *Query) (ids []uint64, err error) {
-	err = c.FetchIDs(q, func(id uint64) error {
+	err = c.FetchID(q, func(id uint64) error {
 		ids = append(ids, id)
 		return nil
 	})

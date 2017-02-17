@@ -9,25 +9,36 @@ import (
 	"testing"
 )
 
+type User struct {
+	Name string
+	Age  int
+}
+
 func TestTransaction_PutVar(t *testing.T) {
 	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
 	defer store.Drop()
 
 	// put vars
 	err := store.Exec(func(tr *Transaction) {
-		tr.PutVar(Key(TabTest, "keyA"), "Alice") // string
-		tr.PutVar(Key(TabTest, "keyB"), 0xB0b)   // int
+		tr.PutVar(Key(TestTable, "keyA"), "Alice")           // string
+		tr.PutVar(Key(TestTable, "keyB"), 0xB0B)             // int
+		tr.PutVar(Key(TestTable, "keyC"), User{"Carol", 18}) // any object
 	})
 
 	// get vars
-	var v1 string
-	var v2 int
-	store.GetVar(Key(TabTest, "keyA"), &v1)
-	store.GetVar(Key(TabTest, "keyB"), &v2)
+	var (
+		v1 string
+		v2 int
+		v3 User
+	)
+	store.GetVar(Key(TestTable, "keyA"), &v1)
+	store.GetVar(Key(TestTable, "keyB"), &v2)
+	store.GetVar(Key(TestTable, "keyC"), &v3)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Alice", v1)
-	assert.Equal(t, 0xB0b, v2)
+	assert.Equal(t, 0xB0B, v2)
+	assert.Equal(t, User{"Carol", 18}, v3)
 }
 
 func TestTransaction_GetVar(t *testing.T) {
@@ -39,7 +50,7 @@ func TestTransaction_GetVar(t *testing.T) {
 		ok  bool
 		err error
 	}
-	key := Key(TabTest, "id")
+	key := Key(TestTable, "id")
 	err := store.Exec(func(tr *Transaction) {
 		tr.PutVar(key, "Alice")
 
@@ -73,7 +84,7 @@ func TestTransaction_Discard(t *testing.T) {
 		ok  bool
 		err error
 	}
-	key := Key(TabTest, "id")
+	key := Key(TestTable, "id")
 	err := store.Exec(func(tr *Transaction) {
 		tr.PutVar(key, "Alice")
 
@@ -98,15 +109,15 @@ func TestTransaction_SequenceNextVal(t *testing.T) {
 	var a, b, c, d uint64
 
 	store.Exec(func(tr *Transaction) {
-		a = tr.SequenceNextVal(TabTest)
-		b = tr.SequenceNextVal(TabTest)
+		a = tr.SequenceNextVal(TestTable)
+		b = tr.SequenceNextVal(TestTable)
 	})
 	store.Exec(func(tr *Transaction) {
-		c = tr.SequenceNextVal(TabTest)
+		c = tr.SequenceNextVal(TestTable)
 		tr.Fail(errors.New("transaction-fail")) // discard transaction
 	})
 	store.Exec(func(tr *Transaction) {
-		d = tr.SequenceNextVal(TabTest)
+		d = tr.SequenceNextVal(TestTable)
 	})
 
 	assert.True(t, b == a+1)
@@ -118,7 +129,7 @@ func TestTransaction_IncNum(t *testing.T) {
 	var v1 int64
 	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
 	defer store.Drop()
-	key := Key(TabTest, "id")
+	key := Key(TestTable, "id")
 	store.Exec(func(tr *Transaction) {
 		tr.PutVar(key, 100)
 	})

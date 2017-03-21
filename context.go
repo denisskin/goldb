@@ -2,6 +2,7 @@ package goldb
 
 import (
 	"bytes"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -59,6 +60,13 @@ func (c *Context) GetVar(key []byte, v interface{}) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// GetNumRows fetches data by query and calculates count rows
+func (c *Context) GetNumRows(q *Query) (numRows uint64, err error) {
+	err = c.execute(q, nil)
+	numRows = q.NumRows
+	return
 }
 
 // Fetch fetches raw-data by query

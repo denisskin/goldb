@@ -69,6 +69,15 @@ func (c *Context) GetNumRows(q *Query) (numRows uint64, err error) {
 	return
 }
 
+// Exists returns true when exists results by query
+func (c *Context) Exists(q *Query) (ok bool, err error) {
+	var qCopy = *q
+	qCopy.Limit(1)
+	err = c.execute(&qCopy, nil)
+	ok = qCopy.NumRows > 0
+	return
+}
+
 // Fetch fetches raw-data by query
 func (c *Context) Fetch(q *Query, fnRow func(value []byte) error) error {
 	return c.execute(q, fnRow)

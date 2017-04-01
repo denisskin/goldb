@@ -1,14 +1,16 @@
 package goldb
 
 import (
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/syndtr/goleveldb/leveldb/util"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/errors"
+	"github.com/syndtr/goleveldb/leveldb/opt"
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 type Storage struct {
@@ -28,8 +30,12 @@ func NewStorage(dir string, op *opt.Options) (s *Storage) {
 		op:  op,
 		seq: map[Entity]uint64{},
 	}
+
 	if err := s.Open(); err == nil {
 		return
+
+	} else if !errors.IsCorrupted(err) {
+		panic(err)
 	}
 
 	// try to recover files

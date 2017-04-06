@@ -50,8 +50,6 @@ func NewStorage(dir string, op *opt.Options) (s *Storage) {
 }
 
 func (s *Storage) Open() error {
-	// TODO: RecoverFile ???
-
 	db, err := leveldb.OpenFile(s.dir, s.op)
 	if err != nil {
 		return err
@@ -134,19 +132,15 @@ func (s *Storage) Reindex() (err error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
-	os.RemoveAll(s.dir + ".reindex")
-	os.RemoveAll(s.dir + ".old")
+	tmpDir := s.dir + ".reindex"
+	oldDir := s.dir + ".old"
+
+	defer os.RemoveAll(tmpDir)
+	os.RemoveAll(tmpDir)
+	os.RemoveAll(oldDir)
 
 	dbOld := s.db
-
-	// lock db
-	trLock, err := dbOld.OpenTransaction()
-	if err != nil {
-		return
-	}
-	defer trLock.Discard()
-
-	dbNew, err := leveldb.OpenFile(s.dir+".reindex", s.op)
+	dbNew, err := leveldb.OpenFile(tmpDir, s.op)
 	if err != nil {
 		return
 	}
@@ -195,10 +189,10 @@ func (s *Storage) Reindex() (err error) {
 		return
 	}
 
-	if err = os.Rename(s.dir, s.dir+".old"); err != nil {
+	if err = os.Rename(s.dir, oldDir); err != nil {
 		return
 	}
-	if err = os.Rename(s.dir+".reindex", s.dir); err != nil {
+	if err = os.Rename(tmpDir, s.dir); err != nil {
 		return
 	}
 
@@ -211,7 +205,7 @@ func (s *Storage) Reindex() (err error) {
 	s.db = dbNew
 	dbOld.Close()
 
-	os.RemoveAll(s.dir + ".old")
+	os.RemoveAll(oldDir)
 
 	return
 }

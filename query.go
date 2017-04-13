@@ -7,7 +7,7 @@ type Query struct {
 	filter    []byte
 	offset    []byte
 	desc      bool
-	limit     uint64
+	limit     int64
 	recFilter func(id uint64) bool
 
 	// results
@@ -17,7 +17,7 @@ type Query struct {
 func NewQuery(idxID Entity, filterVal ...interface{}) *Query {
 	return &Query{
 		filter: Key(idxID, filterVal...),
-		limit:  100000,
+		limit:  -1,
 	}
 }
 
@@ -33,7 +33,7 @@ func (q *Query) Last() *Query {
 	return q.Limit(1).OrderDesc()
 }
 
-func (q *Query) Limit(limit uint64) *Query {
+func (q *Query) Limit(limit int64) *Query {
 	q.limit = limit
 	return q
 }

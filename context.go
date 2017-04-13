@@ -134,6 +134,9 @@ func (c *Context) execute(q *Query, fnRow func([]byte) error) (err error) {
 	start := append(pfx, q.offset...)
 	nStart := len(start)
 	limit := q.limit
+	if limit < 0 {
+		limit = 1e15
+	}
 	skipFirst := len(q.offset) > 0
 
 	var iter iterator.Iterator

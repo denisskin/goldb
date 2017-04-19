@@ -209,3 +209,33 @@ func (s *Storage) Reindex() (err error) {
 
 	return
 }
+
+func (s *Storage) Put(key, data []byte) error {
+	return s.Exec(func(tr *Transaction) {
+		tr.Put(key, data)
+	})
+}
+
+func (s *Storage) PutID(key []byte, id uint64) error {
+	return s.Exec(func(tr *Transaction) {
+		tr.PutID(key, id)
+	})
+}
+
+func (s *Storage) PutInt(key []byte, num int64) error {
+	return s.Exec(func(tr *Transaction) {
+		tr.PutInt(key, num)
+	})
+}
+
+func (s *Storage) PutVar(key []byte, v interface{}) error {
+	return s.Exec(func(tr *Transaction) {
+		tr.PutVar(key, v)
+	})
+}
+
+func (s *Storage) Del(key []byte) error {
+	return s.Exec(func(tr *Transaction) {
+		tr.Del(key)
+	})
+}

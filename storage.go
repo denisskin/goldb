@@ -128,7 +128,7 @@ func (s *Storage) Exec(fn func(tx *Transaction)) (err error) {
 	return t.err
 }
 
-func (s *Storage) Reindex() (err error) {
+func (s *Storage) Vacuum() (err error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 

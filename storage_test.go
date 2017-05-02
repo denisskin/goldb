@@ -2,12 +2,13 @@ package goldb
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"log"
 	"math/rand"
 	"os"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 //------------------------------------
@@ -61,14 +62,14 @@ func fileExists(path string) bool {
 	return st != nil
 }
 
-func TestStorage_Reindex(t *testing.T) {
+func TestStorage_Vacuum(t *testing.T) {
 	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
 	defer store.Drop()
 
 	const countRows = 3000
 
 	// insert test data
-	log.Println("Storage.Reindex: inserting test data...")
+	log.Println("Storage.Vacuum: inserting test data...")
 	for i := 0; i < countRows; i++ {
 		store.Exec(func(tr *Transaction) {
 			tr.PutVar(Key(TestTable, "LongLongLongKey%d", i*15551%countRows), "The string value")
@@ -77,12 +78,12 @@ func TestStorage_Reindex(t *testing.T) {
 
 	// reindex db
 	sizeBefore := store.Size()
-	log.Println("Storage.Reindex: start reindexing.  Storage-size: ", sizeBefore)
+	log.Println("Storage.Vacuum: start reindexing.  Storage-size: ", sizeBefore)
 
-	err := store.Reindex()
+	err := store.Vacuum()
 
 	sizeAfter := store.Size()
-	log.Println("Storage.Reindex: finish reindexing. Storage-size: ", sizeAfter)
+	log.Println("Storage.Vacuum: finish reindexing. Storage-size: ", sizeAfter)
 
 	// asserts
 	assert.NoError(t, err)
@@ -92,7 +93,7 @@ func TestStorage_Reindex(t *testing.T) {
 	assert.False(t, fileExists(store.dir+".old"))
 }
 
-func TestStorage_Reindex_Parallel(t *testing.T) {
+func TestStorage_Vacuum_Parallel(t *testing.T) {
 	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
 	defer store.Drop()
 
@@ -108,7 +109,7 @@ func TestStorage_Reindex_Parallel(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		err := store.Reindex()
+		err := store.Vacuum()
 		assert.NoError(t, err)
 		wg.Done()
 	}()

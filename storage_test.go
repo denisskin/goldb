@@ -52,9 +52,9 @@ func TestContext_Fetch(t *testing.T) {
 	qA2 := NewQuery(TestTable, "A").Offset(1)
 	store.Fetch(qA2, nil)
 
-	assert.Equal(t, 4, q.NumRows)
-	assert.Equal(t, 2, qA.NumRows)
-	assert.Equal(t, 1, qA2.NumRows)
+	assert.Equal(t, 4, int(q.NumRows))
+	assert.Equal(t, 2, int(qA.NumRows))
+	assert.Equal(t, 1, int(qA2.NumRows))
 }
 
 func fileExists(path string) bool {

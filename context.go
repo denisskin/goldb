@@ -43,12 +43,14 @@ func (c *Context) GetInt(key []byte) (num int64, err error) {
 }
 
 // GetID returns uint64-data by key
-func (c *Context) GetID(key []byte) (id uint64, err error) {
-	data, err := c.Get(key)
-	if err == nil {
-		id, err = DecodeID(data)
+func (c *Context) GetID(key []byte) (uint64, error) {
+	if data, err := c.Get(key); err == nil {
+		return DecodeID(data)
+	} else if err == leveldb.ErrNotFound {
+		return 0, nil
+	} else {
+		return 0, err
 	}
-	return
 }
 
 // GetStr returns string-data by key

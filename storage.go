@@ -31,21 +31,19 @@ func NewStorage(dir string, op *opt.Options) (s *Storage) {
 		seq: map[Entity]uint64{},
 	}
 
-	if err := s.Open(); err == nil {
-		return
-
-	} else if !errors.IsCorrupted(err) {
-		panic(err)
-	}
-
-	// try to recover files
-	if err := s.Recover(); err != nil {
-		log.Println("!!! db.Storage.Recover-ERROR: ", err)
-	}
 	if err := s.Open(); err != nil {
-		panic(err)
+		if errors.IsCorrupted(err) {
+			// try to recover files
+			if err := s.Recover(); err != nil {
+				log.Println("!!! db.Storage.Recover-ERROR: ", err)
+			}
+			if err := s.Open(); err != nil {
+				panic(err)
+			}
+		} else {
+			panic(err)
+		}
 	}
-
 	return
 }
 

@@ -81,10 +81,10 @@ func (s *Storage) Drop() error {
 	return os.RemoveAll(s.dir)
 }
 
-func (s *Storage) Size() (size uint64) {
+func (s *Storage) Size() (size int64) {
 	filepath.Walk(s.dir, func(_ string, info os.FileInfo, err error) error {
 		if info != nil && !info.IsDir() {
-			size += uint64(info.Size())
+			size += info.Size()
 		}
 		return err
 	})

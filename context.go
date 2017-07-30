@@ -2,6 +2,7 @@ package goldb
 
 import (
 	"bytes"
+	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
@@ -13,6 +14,7 @@ import (
 // Context is implemented by Transaction and Storage
 type Context struct {
 	qCtx         queryContext
+	rmx          sync.RWMutex
 	ReadOptions  *opt.ReadOptions
 	WriteOptions *opt.WriteOptions
 }
@@ -24,6 +26,9 @@ type queryContext interface {
 
 // Get returns raw data by key
 func (c *Context) Get(key []byte) ([]byte, error) {
+	c.rmx.RLock()
+	defer c.rmx.RUnlock()
+
 	data, err := c.qCtx.Get(key, c.ReadOptions)
 	if err != nil && err != leveldb.ErrNotFound {
 		return nil, nil
@@ -43,6 +48,12 @@ func (c *Context) GetID(key []byte) (id uint64, err error) {
 	if err == nil {
 		id, err = DecodeID(data)
 	}
+	return
+}
+
+// GetStr returns string-data by key
+func (c *Context) GetStr(key []byte) (s string, err error) {
+	_, err = c.GetVar(key, &s)
 	return
 }
 
@@ -143,6 +154,9 @@ func (c *Context) execute(q *Query, fnRow func(key, val []byte) error) (err erro
 	var iterNext func() bool
 	var rowID uint64
 	fnRecordFilter := q.recFilter
+
+	c.rmx.RLock()
+	defer c.rmx.RUnlock()
 
 	if !q.desc { // ask
 		iter = c.qCtx.NewIterator(&util.Range{Start: start}, nil)

@@ -18,7 +18,6 @@ type Storage struct {
 	dir string
 	db  *leveldb.DB
 	op  *opt.Options
-	seq map[Entity]uint64
 	mx  sync.Mutex
 }
 
@@ -28,7 +27,6 @@ func NewStorage(dir string, op *opt.Options) (s *Storage) {
 	s = &Storage{
 		dir: dir,
 		op:  op,
-		seq: map[Entity]uint64{},
 	}
 
 	if err := s.Open(); err != nil {
@@ -82,6 +80,9 @@ func (s *Storage) Drop() error {
 }
 
 func (s *Storage) Size() (size int64) {
+	s.rmx.RLock()
+	defer s.rmx.RUnlock()
+
 	filepath.Walk(s.dir, func(_ string, info os.FileInfo, err error) error {
 		if info != nil && !info.IsDir() {
 			size += info.Size()
@@ -95,6 +96,9 @@ func (s *Storage) Truncate() error {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
+	s.rmx.Lock() // wait for all readers
+	defer s.rmx.Unlock()
+
 	if err := s.Drop(); err != nil {
 		return err
 	}
@@ -107,7 +111,12 @@ func (s *Storage) Exec(fn func(tx *Transaction)) (err error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
-	t := newTransaction(s)
+	t := &Transaction{}
+	t.tr, t.err = s.db.OpenTransaction()
+	t.Context.qCtx = t.tr
+	t.Context.ReadOptions = s.ReadOptions
+	t.Context.WriteOptions = s.WriteOptions
+
 	defer func() {
 		if e, _ := recover().(error); e != nil {
 			t.Discard()
@@ -186,6 +195,9 @@ func (s *Storage) Vacuum() (err error) {
 	if err = dbNew.Close(); err != nil {
 		return
 	}
+
+	s.rmx.Lock() // wait for all readers
+	defer s.rmx.Unlock()
 
 	if err = os.Rename(s.dir, oldDir); err != nil {
 		return

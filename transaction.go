@@ -4,27 +4,13 @@ import "github.com/syndtr/goleveldb/leveldb"
 
 type Transaction struct {
 	Context
-	storage *Storage
-	tr      *leveldb.Transaction
-	err     error
-	Data    interface{}
-}
-
-func newTransaction(storage *Storage) *Transaction {
-	t := &Transaction{
-		storage: storage,
-	}
-	t.tr, t.err = storage.db.OpenTransaction()
-	t.Context.qCtx = t.tr
-	t.Context.ReadOptions = storage.ReadOptions
-	t.Context.WriteOptions = storage.WriteOptions
-	return t
+	tr   *leveldb.Transaction
+	err  error
+	seq  map[Entity]uint64
+	Data interface{}
 }
 
 func (t *Transaction) Discard() {
-	// clear sequences cache
-	t.storage.seq = map[Entity]uint64{}
-
 	t.tr.Discard()
 }
 
@@ -44,23 +30,27 @@ func (t *Transaction) Fail(err error) {
 const tabSequences Entity = 0x7fffffff
 
 func (t *Transaction) SequenceCurVal(tab Entity) (seq uint64) {
-	var key = Key(tabSequences, int(tab))
-	if seq = t.storage.seq[tab]; seq != 0 {
+	if t.seq == nil {
+		t.seq = map[Entity]uint64{}
+	}
+	seq, ok := t.seq[tab]
+	if ok {
 		return
 	}
+	key := Key(tabSequences, int(tab))
 	if _, err := t.GetVar(key, &seq); err != nil {
 		t.Fail(err)
-		return
+	} else { // success
+		t.seq[tab] = seq
 	}
-	t.storage.seq[tab] = seq
 	return
 }
 
 func (t *Transaction) SequenceNextVal(tab Entity) (seq uint64) {
 	seq = t.SequenceCurVal(tab) + 1
+	t.seq[tab] = seq
 	var key = Key(tabSequences, int(tab))
 	t.PutVar(key, seq)
-	t.storage.seq[tab] = seq
 	return seq
 }
 

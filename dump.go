@@ -14,7 +14,7 @@ type DumpOptions struct {
 
 func (s *Storage) Dump(filepath string, options *DumpOptions) (err error) {
 	op := DumpOptions{
-		CompressionLevel: 9,
+		CompressionLevel: flate.DefaultCompression,
 	}
 	if options != nil {
 		op = *options
@@ -39,9 +39,17 @@ func (s *Storage) Dump(filepath string, options *DumpOptions) (err error) {
 		q.filter = nil // all keys
 	}
 
+	const SyncBatchSize = 10 * 1024 * 1024 // 10 MiB
+	var nextSyncVol int64
 	err = s.Fetch(q, func(key, value []byte) error {
 		w.WriteVar(key)
 		w.WriteVar(value)
+		if w.CntWritten > nextSyncVol {
+			nextSyncVol += SyncBatchSize
+			if err := file.Sync(); err != nil {
+				return err
+			}
+		}
 		return w.Error()
 	})
 
@@ -59,6 +67,9 @@ func (s *Storage) Restore(filepath string) (err error) {
 	fl := flate.NewReader(file)
 	defer fl.Close()
 	r := bin.NewReader(fl)
+
+	s.mx.Lock()
+	defer s.mx.Unlock()
 
 	tr, err := s.db.OpenTransaction()
 	if err != nil {

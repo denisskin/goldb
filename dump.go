@@ -39,7 +39,7 @@ func (s *Storage) Dump(filepath string, options *DumpOptions) (err error) {
 		q.filter = nil // all keys
 	}
 
-	const SyncBatchSize = 10 * 1024 * 1024 // 10 MiB
+	const SyncBatchSize = 32 * 1024 * 1024 // 32 MiB
 	var nextSyncVol int64
 	err = s.Fetch(q, func(key, value []byte) error {
 		w.WriteVar(key)

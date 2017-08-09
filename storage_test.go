@@ -2,7 +2,6 @@ package goldb
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"sync"
@@ -66,26 +65,43 @@ func TestStorage_Vacuum(t *testing.T) {
 	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
 	defer store.Drop()
 
+	//------- insert test data ------------
 	const countRows = 3000
-
-	// insert test data
-	log.Println("Storage.Vacuum: inserting test data...")
 	for i := 0; i < countRows; i++ {
 		store.Exec(func(tr *Transaction) {
-			tr.PutVar(Key(TestTable, "LongLongLongKey%d", i*15551%countRows), "The string value")
+			tr.PutVar(Key(TestTable, "LongLongLongKey%d", i*15551%countRows), "String value")
 		})
 	}
-
-	// reindex db
 	sizeBefore := store.Size()
-	log.Println("Storage.Vacuum: start reindexing.  Storage-size: ", sizeBefore)
+	t.Log("\tStorage.Vacuum: start.  Storage-size: ", sizeBefore)
 
+	// run several read routines
+	var wg sync.WaitGroup
+	var fFinishVacuum bool
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; !fFinishVacuum; i++ {
+				i %= countRows
+				v, _ := store.GetStr(Key(TestTable, "LongLongLongKey%d", i*15551%countRows))
+				if !assert.Equal(t, "String value", v) {
+					break
+				}
+			}
+		}()
+	}
+
+	//----- vacuum db ------------
 	err := store.Vacuum()
 
 	sizeAfter := store.Size()
-	log.Println("Storage.Vacuum: finish reindexing. Storage-size: ", sizeAfter)
+	t.Log("\tStorage.Vacuum: finish. Storage-size: ", sizeAfter)
 
-	// asserts
+	fFinishVacuum = true
+	wg.Wait()
+
+	//----- asserts ------------
 	assert.NoError(t, err)
 	assert.True(t, sizeAfter < sizeBefore/50)
 	assert.True(t, fileExists(store.dir))
@@ -105,30 +121,31 @@ func TestStorage_Vacuum_Parallel(t *testing.T) {
 		})
 	}
 
-	// parallel start reindexing
+	// parallel update all rows
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		err := store.Vacuum()
-		assert.NoError(t, err)
-		wg.Done()
+		defer wg.Done()
+		for i := 0; i < countRows; i++ {
+			err := store.Exec(func(tr *Transaction) {
+				tr.PutVar(Key(TestTable, i), "Second value")
+			})
+			if !assert.NoError(t, err) {
+				break
+			}
+		}
 	}()
 
-	// update all rows
-	for i := 0; i < countRows; i++ {
-		err := store.Exec(func(tr *Transaction) {
-			tr.PutVar(Key(TestTable, i), "Second value")
-		})
-		assert.NoError(t, err)
-	}
+	// start vacuum
+	err := store.Vacuum()
 
-	// wait reindexing
-	wg.Wait()
+	assert.NoError(t, err)
 
 	// check data
+	wg.Wait()
 	for i := 0; i < countRows; i++ {
-		var val string
-		store.GetVar(Key(TestTable, i), &val)
+		val, err := store.GetStr(Key(TestTable, i))
+		assert.NoError(t, err)
 		assert.Equal(t, "Second value", val)
 	}
 }

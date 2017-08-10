@@ -15,7 +15,7 @@ func generateData(iteration int) (key, val []byte) {
 	return
 }
 
-func putTestData(iteration int, tr *Transaction) {
+func putTestValue(iteration int, tr *Transaction) {
 	key, val := generateData(iteration)
 	tr.Put(key, val)
 }
@@ -30,7 +30,7 @@ func BenchmarkContext_Get(b *testing.B) {
 	// put test data
 	err := store.Exec(func(tr *Transaction) {
 		for i := 0; i < CountTestData; i++ {
-			putTestData(i, tr)
+			putTestValue(i, tr)
 		}
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func BenchmarkTransaction_Put_ByOneRecord(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		err := store.Exec(func(tr *Transaction) {
-			putTestData(i, tr)
+			putTestValue(i, tr)
 		})
 		if err != nil {
 			b.Fail()
@@ -74,7 +74,7 @@ func BenchmarkTransaction_Put_By10Records(b *testing.B) {
 	for i := 1; i <= b.N; i++ {
 		err := store.Exec(func(tr *Transaction) {
 			for ; i <= b.N && i%10 != 0; i++ {
-				putTestData(i, tr)
+				putTestValue(i, tr)
 			}
 		})
 		if err != nil {
@@ -93,7 +93,7 @@ func BenchmarkTransaction_Put_By100Records(b *testing.B) {
 	for i := 1; i <= b.N; i++ {
 		err := store.Exec(func(tr *Transaction) {
 			for ; i <= b.N && i%100 != 0; i++ {
-				putTestData(i, tr)
+				putTestValue(i, tr)
 			}
 		})
 		if err != nil {
@@ -112,7 +112,7 @@ func BenchmarkTransaction_Put_By1000Records(b *testing.B) {
 	for i := 1; i <= b.N; i++ {
 		err := store.Exec(func(tr *Transaction) {
 			for ; i <= b.N && i%1000 != 0; i++ {
-				putTestData(i, tr)
+				putTestValue(i, tr)
 			}
 		})
 		if err != nil {
@@ -131,7 +131,7 @@ func BenchmarkTransaction_Put_By10000Records(b *testing.B) {
 	for i := 1; i <= b.N; i++ {
 		err := store.Exec(func(tr *Transaction) {
 			for ; i <= b.N && i%10000 != 0; i++ {
-				putTestData(i, tr)
+				putTestValue(i, tr)
 			}
 		})
 		if err != nil {
@@ -150,7 +150,7 @@ func BenchmarkTransaction_Put_By100000Records(b *testing.B) {
 	for i := 1; i <= b.N; i++ {
 		err := store.Exec(func(tr *Transaction) {
 			for ; i <= b.N && i%100000 != 0; i++ {
-				putTestData(i, tr)
+				putTestValue(i, tr)
 			}
 		})
 		if err != nil {

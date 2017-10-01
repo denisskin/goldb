@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/denisskin/bin"
 )
@@ -25,17 +26,19 @@ func (r Record) String() string {
 
 //------- key ---------
 func (r Record) Table() Entity {
-	id, _ := decodeUint(r.Key)
+	id, err := decodeUint(r.Key)
+	panicOnErr(err)
 	return Entity(id)
 }
 
-func (r Record) DecodeKey(vv ...interface{}) error {
+func (r Record) DecodeKey(vv ...interface{}) {
 	buf := bin.NewBuffer(r.Key)
 	buf.ReadVarInt64() // read tableID
+	panicOnErr(buf.Error())
 	for _, v := range vv {
 		if str, ok := v.(*string); ok { // special case - read string in Key
 			if n := bytes.IndexByte(r.Key[int(buf.CntRead):], 0); n < 0 {
-				return errInvalidKeyData
+				panic(errInvalidKeyData)
 			} else {
 				s := make([]byte, n+1)
 				if _, err := buf.Read(s); err == nil {
@@ -45,8 +48,8 @@ func (r Record) DecodeKey(vv ...interface{}) error {
 		} else {
 			buf.ReadVar(v)
 		}
+		panicOnErr(buf.Error())
 	}
-	return buf.Error()
 }
 
 func (r Record) KeyOffset(q *Query) []byte {
@@ -55,13 +58,12 @@ func (r Record) KeyOffset(q *Query) []byte {
 
 //------ value --------------
 func (r Record) RowID() (id uint64) {
-	var idx int64
-	bin.Decode(r.Key, &idx, &id)
+	panicOnErr(bin.Decode(r.Key, new(int64), &id))
 	return
 }
 
-func (r Record) Decode(v interface{}) error {
-	return bin.Decode(r.Value, v)
+func (r Record) Decode(v interface{}) {
+	panicOnErr(decodeValue(r.Value, v))
 }
 
 func (r Record) ValueID() (id uint64) {
@@ -75,6 +77,11 @@ func (r Record) ValueStr() (v string) {
 }
 
 func (r Record) ValueInt() (v int64) {
+	r.Decode(&v)
+	return
+}
+
+func (r Record) ValueBigInt() (v *big.Int) {
 	r.Decode(&v)
 	return
 }

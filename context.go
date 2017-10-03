@@ -2,6 +2,7 @@ package goldb
 
 import (
 	"bytes"
+	"errors"
 	"math/big"
 	"sync"
 
@@ -15,6 +16,7 @@ import (
 // Context is implemented by Transaction and Storage
 type Context struct {
 	qCtx         queryContext
+	fPanicOnErr  bool
 	rmx          sync.RWMutex
 	ReadOptions  *opt.ReadOptions
 	WriteOptions *opt.WriteOptions
@@ -31,8 +33,11 @@ func (c *Context) Get(key []byte) ([]byte, error) {
 	defer c.rmx.RUnlock()
 
 	data, err := c.qCtx.Get(key, c.ReadOptions)
-	if err != nil && err != leveldb.ErrNotFound {
+	if err == leveldb.ErrNotFound {
 		return nil, nil
+	}
+	if err != nil && c.fPanicOnErr {
+		panic(err)
 	}
 	return data, err
 }
@@ -50,14 +55,19 @@ func (c *Context) GetBigInt(key []byte) (num *big.Int, err error) {
 }
 
 // GetID returns uint64-data by key
-func (c *Context) GetID(key []byte) (uint64, error) {
-	if data, err := c.Get(key); err == nil {
-		return decodeUint(data)
-	} else if err == leveldb.ErrNotFound {
-		return 0, nil
-	} else {
-		return 0, err
+func (c *Context) GetID(key []byte) (v uint64, err error) {
+	data, err := c.Get(key)
+	if err != nil {
+		return
 	}
+	if data == nil {
+		return 0, nil
+	}
+	v, err = decodeUint(data)
+	if err != nil && c.fPanicOnErr {
+		panic(err)
+	}
+	return
 }
 
 // GetStr returns string-data by key
@@ -69,17 +79,18 @@ func (c *Context) GetStr(key []byte) (s string, err error) {
 // GetVar get data by key and unmarshal to to variable;
 // Returns true when data by key existed
 func (c *Context) GetVar(key []byte, v interface{}) (bool, error) {
-	data, err := c.Get(key)
-	if err == leveldb.ErrNotFound {
-		return false, nil
-	}
-	if err == nil {
-		err = decodeValue(data, v)
-	}
-	if err != nil {
+	if data, err := c.Get(key); err != nil {
 		return false, err
+	} else if data == nil {
+		return false, nil
+	} else if err = decodeValue(data, v); err != nil {
+		if c.fPanicOnErr {
+			panic(err)
+		}
+		return false, err
+	} else {
+		return true, nil
 	}
-	return true, nil
 }
 
 // GetNumRows fetches data by query and calculates count rows
@@ -98,7 +109,7 @@ func (c *Context) Exists(q *Query) (ok bool, err error) {
 	return
 }
 
-// Fetch fetches raw-data by query
+// Fetch fetches data by query
 func (c *Context) Fetch(q *Query, fnRecord func(rec Record) error) error {
 	return c.execute(q, fnRecord)
 }
@@ -114,22 +125,19 @@ func (c *Context) FetchID(q *Query, fnRow func(id uint64) error) error {
 	})
 }
 
-// FetchObject fetches object by query
-func (c *Context) FetchObject(q *Query, obj interface{}, fnRow func() error) error {
-	return c.execute(q, func(rec Record) error {
-		if err := decodeValue(rec.Value, obj); err != nil {
-			return err
-		} else {
-			return fnRow()
-		}
-	})
+var errBreak = errors.New("break of fetching")
+
+// Break breaks fetching
+func Break() {
+	panic(errBreak)
 }
 
 // QueryValue returns first row-value by query
 func (c *Context) QueryValue(q *Query, v interface{}) error {
 	q.Limit(1)
 	return c.Fetch(q, func(rec Record) error {
-		return rec.Decode(v)
+		rec.Decode(v)
+		return nil
 	})
 }
 
@@ -181,9 +189,15 @@ func (c *Context) execute(q *Query, fnRow func(rec Record) error) (err error) {
 	}
 
 	defer func() {
+		if r, _ := recover().(error); r != nil && r != errBreak {
+			err = r
+		}
 		iter.Release()
 		if err == nil {
 			err = iter.Error()
+		}
+		if err != nil && c.fPanicOnErr {
+			panic(err)
 		}
 	}()
 
@@ -193,17 +207,10 @@ func (c *Context) execute(q *Query, fnRow func(rec Record) error) (err error) {
 			break
 		}
 		if skipFirst { // skip first record if record.key == startOffset
-			//if q.strongOffset { // todo: use only strong compare (returns actual offset after each query)
-			//	skipFirst = false
-			//	if bytes.Equal(key, start) {
-			//		continue
-			//	}
-			//} else {
 			if len(key) >= nStart && bytes.Equal(key[:nStart], start) {
 				continue
 			}
 			skipFirst = false
-			//}
 		}
 		val := iter.Value()
 		if fnRecordFilter != nil && !fnRecordFilter(Record{key, val}) {

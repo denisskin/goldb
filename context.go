@@ -36,7 +36,7 @@ func (c *Context) Get(key []byte) ([]byte, error) {
 	return data, err
 }
 
-// GetNum returns uint64-data by key
+// GetInt returns uint64-data by key
 func (c *Context) GetInt(key []byte) (num int64, err error) {
 	_, err = c.GetVar(key, &num)
 	return

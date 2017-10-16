@@ -2,6 +2,7 @@ package goldb
 
 import (
 	"bytes"
+	"math/big"
 	"sync"
 
 	"github.com/syndtr/goleveldb/leveldb"
@@ -38,6 +39,12 @@ func (c *Context) Get(key []byte) ([]byte, error) {
 
 // GetInt returns uint64-data by key
 func (c *Context) GetInt(key []byte) (num int64, err error) {
+	_, err = c.GetVar(key, &num)
+	return
+}
+
+// GetBigInt returns bigint-number by key
+func (c *Context) GetBigInt(key []byte) (num *big.Int, err error) {
 	_, err = c.GetVar(key, &num)
 	return
 }

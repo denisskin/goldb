@@ -112,8 +112,12 @@ func (s *Storage) Exec(fn func(tx *Transaction)) (err error) {
 	defer s.mx.Unlock()
 
 	t := &Transaction{}
-	t.tr, t.err = s.db.OpenTransaction()
+	t.tr, err = s.db.OpenTransaction()
+	if err != nil {
+		return
+	}
 	t.Context.qCtx = t.tr
+	t.Context.fPanicOnErr = true
 	t.Context.ReadOptions = s.ReadOptions
 	t.Context.WriteOptions = s.WriteOptions
 
@@ -123,16 +127,11 @@ func (s *Storage) Exec(fn func(tx *Transaction)) (err error) {
 			err = e
 		}
 	}()
-	if t.err != nil {
-		return t.err
-	}
+
 	fn(t)
-	if t.err == nil {
-		t.Commit()
-	} else {
-		t.Discard()
-	}
-	return t.err
+
+	err = t.Commit()
+	return
 }
 
 func (s *Storage) Vacuum() (err error) {
@@ -250,16 +249,17 @@ func (s *Storage) PutVar(key []byte, v interface{}) error {
 	})
 }
 
-func (s *Storage) Del(key []byte) error {
+func (s *Storage) Delete(key []byte) error {
 	return s.Exec(func(tr *Transaction) {
-		tr.Del(key)
+		tr.Delete(key)
 	})
 }
 
 func (s *Storage) RemoveByQuery(q *Query) error {
 	return s.Exec(func(tr *Transaction) {
 		tr.Fetch(q, func(rec Record) error {
-			return tr.Del(rec.Key)
+			tr.Delete(rec.Key)
+			return nil
 		})
 	})
 }

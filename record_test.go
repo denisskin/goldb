@@ -15,9 +15,8 @@ func TestRecord_DecodeKey(t *testing.T) {
 		bb  []byte
 	)
 	tableID := int(rec.Table())
-	err := rec.DecodeKey(&s, &num, &bb)
+	rec.DecodeKey(&s, &num, &bb)
 
-	assert.NoError(t, err)
 	assert.Equal(t, tableID, 123)
 	assert.Equal(t, "Зазеркалье", s)
 	assert.Equal(t, 0x4567, num)
@@ -30,9 +29,8 @@ func TestRecord_Decode(t *testing.T) {
 
 	var user User
 	rowID := rec.RowID()
-	err := rec.Decode(&user)
+	rec.Decode(&user)
 
-	assert.NoError(t, err)
 	assert.EqualValues(t, 0x456, rowID)
 	assert.Equal(t, User{"Alice", 22}, user)
 }

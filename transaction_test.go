@@ -126,7 +126,7 @@ func TestTransaction_SequenceNextVal(t *testing.T) {
 	assert.True(t, d == b+1)
 }
 
-func TestTransaction_IncNum(t *testing.T) {
+func TestTransaction_Increment(t *testing.T) {
 	var v1 int64
 	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
 	defer store.Drop()
@@ -137,7 +137,7 @@ func TestTransaction_IncNum(t *testing.T) {
 
 	err := store.Exec(func(tr *Transaction) {
 		// increment value (transaction context)
-		v1, _ = tr.IncInt(key, 23)
+		v1 = tr.Increment(key, 23)
 	})
 	// get value (storage context)
 	v2, _ := store.GetInt(key)

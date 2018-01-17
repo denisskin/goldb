@@ -2,6 +2,7 @@ package goldb
 
 import (
 	"crypto/sha256"
+
 	"github.com/denisskin/bin"
 )
 
@@ -42,7 +43,7 @@ func encKey(v interface{}) []byte {
 
 func EncodeData(v interface{}) []byte {
 	w := bin.NewBuffer(nil)
-	if obj, ok := v.(bin.Encoder); ok {
+	if obj, ok := v.(bin.BinEncoder); ok {
 		obj.BinEncode(&w.Writer)
 	} else {
 		w.WriteVar(v)
@@ -52,7 +53,7 @@ func EncodeData(v interface{}) []byte {
 
 func DecodeData(data []byte, v interface{}) error {
 	r := bin.NewBuffer(data)
-	if obj, ok := v.(bin.Decoder); ok {
+	if obj, ok := v.(bin.BinDecoder); ok {
 		obj.BinDecode(&r.Reader)
 	} else {
 		r.ReadVar(v)

@@ -36,38 +36,30 @@ func encKey(v interface{}) []byte {
 	case string:
 		return append([]byte(val), 0x00)
 	}
-	w := bin.NewBuffer(nil)
-	w.WriteVar(v)
-	return w.Bytes()
+	return bin.Encode(v)
 }
 
 func EncodeData(v interface{}) []byte {
-	w := bin.NewBuffer(nil)
-	if obj, ok := v.(bin.BinEncoder); ok {
-		obj.BinEncode(&w.Writer)
-	} else {
-		w.WriteVar(v)
+	if obj, ok := v.(bin.Encoder); ok {
+		return obj.Encode()
 	}
-	return w.Bytes()
+	return bin.Encode(v)
 }
 
 func DecodeData(data []byte, v interface{}) error {
-	r := bin.NewBuffer(data)
-	if obj, ok := v.(bin.BinDecoder); ok {
-		obj.BinDecode(&r.Reader)
-	} else {
-		r.ReadVar(v)
+	if obj, ok := v.(bin.Decoder); ok {
+		return obj.Decode(data)
 	}
-	return r.Error()
+	return bin.Decode(data, v)
 }
 
 func EncodeID(id uint64) []byte {
 	buf := bin.NewBuffer(nil)
-	buf.WriteVar(id)
+	buf.WriteVarUint64(id)
 	return buf.Bytes()
 }
 
 func DecodeID(data []byte) (uint64, error) {
 	r := bin.NewBuffer(data)
-	return r.ReadVarUint()
+	return r.ReadVarUint64()
 }

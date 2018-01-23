@@ -139,24 +139,56 @@ func (s *Storage) Vacuum() (err error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
-	tmpDir := s.dir + ".reindex"
+	tmpDir := s.dir + ".tmp"
 	oldDir := s.dir + ".old"
 
 	defer os.RemoveAll(tmpDir)
 	os.RemoveAll(tmpDir)
 	os.RemoveAll(oldDir)
 
-	dbOld := s.db
-	dbNew, err := leveldb.OpenFile(tmpDir, s.op)
-	if err != nil {
+	// copy db-data to new tmpDB
+	if err = s.copyDataToNewDB(tmpDir); err != nil {
 		return
 	}
 
-	iterator := dbOld.NewIterator(&util.Range{}, s.ReadOptions)
+	s.rmx.Lock() // wait for all readers
+	defer s.rmx.Unlock()
+
+	// close old db
+	if err = s.db.Close(); err != nil {
+		return
+	}
+
+	// move db dirs
+	if err = os.Rename(s.dir, oldDir); err != nil {
+		return
+	}
+	if err = os.Rename(tmpDir, s.dir); err != nil {
+		return
+	}
+
+	// open new db
+	if err = s.Open(); err != nil {
+		return
+	}
+
+	os.RemoveAll(oldDir)
+
+	return
+}
+
+func (s *Storage) copyDataToNewDB(dir string) (err error) {
+	db, err := leveldb.OpenFile(dir, s.op)
+	if err != nil {
+		return
+	}
+	defer db.Close()
+
+	iterator := s.db.NewIterator(&util.Range{}, s.ReadOptions)
+	defer iterator.Release()
 
 	var tr *leveldb.Transaction
 	defer func() {
-		iterator.Release()
 		if err == nil {
 			err = iterator.Error()
 		}
@@ -174,7 +206,7 @@ func (s *Storage) Vacuum() (err error) {
 					return
 				}
 			}
-			if tr, err = dbNew.OpenTransaction(); err != nil {
+			if tr, err = db.OpenTransaction(); err != nil {
 				return
 			}
 		}
@@ -191,32 +223,6 @@ func (s *Storage) Vacuum() (err error) {
 		}
 		tr = nil
 	}
-
-	if err = dbNew.Close(); err != nil {
-		return
-	}
-
-	s.rmx.Lock() // wait for all readers
-	defer s.rmx.Unlock()
-
-	if err = os.Rename(s.dir, oldDir); err != nil {
-		return
-	}
-	if err = os.Rename(tmpDir, s.dir); err != nil {
-		return
-	}
-
-	// reopen db
-	dbNew, err = leveldb.OpenFile(s.dir, s.op)
-	if err != nil {
-		return
-	}
-	s.Context.qCtx = dbNew
-	s.db = dbNew
-	dbOld.Close()
-
-	os.RemoveAll(oldDir)
-
 	return
 }
 

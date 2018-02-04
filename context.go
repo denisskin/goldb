@@ -116,6 +116,14 @@ func (c *Context) FetchObject(q *Query, obj interface{}, fnRow func() error) err
 	})
 }
 
+// QueryValue returns first row-value by query
+func (c *Context) QueryValue(q *Query, v interface{}) error {
+	q.Limit(1)
+	return c.execute(q, func(_, data []byte) error {
+		return DecodeData(data, v)
+	})
+}
+
 // QueryIDs returns slice of row-id by query
 func (c *Context) QueryIDs(q *Query) (ids []uint64, err error) {
 	err = c.FetchID(q, func(id uint64) error {
@@ -127,12 +135,8 @@ func (c *Context) QueryIDs(q *Query) (ids []uint64, err error) {
 
 // QueryID returns first row-id by query
 func (c *Context) QueryID(q *Query) (id uint64, err error) {
-	q.Limit(1)
-	ids, err := c.QueryIDs(q)
-	if len(ids) > 0 {
-		return ids[0], err
-	}
-	return 0, err
+	err = c.QueryValue(q, &id)
+	return
 }
 
 //------ private ------

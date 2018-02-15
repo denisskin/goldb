@@ -258,9 +258,8 @@ func (s *Storage) Del(key []byte) error {
 
 func (s *Storage) RemoveByQuery(q *Query) error {
 	return s.Exec(func(tr *Transaction) {
-		tr.Fetch(q, func(key, value []byte) error {
-			tr.Del(key)
-			return nil
+		tr.Fetch(q, func(rec Record) error {
+			return tr.Del(rec.Key)
 		})
 	})
 }

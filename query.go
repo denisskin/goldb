@@ -1,14 +1,18 @@
 package goldb
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/denisskin/bin"
+)
 
 type Query struct {
 	// query params
-	filter    []byte
-	offset    []byte
-	desc      bool
-	limit     int64
-	recFilter func(id uint64) bool
+	filter   []byte
+	offset   []byte
+	desc     bool
+	limit    int64
+	fnFilter func(Record) bool
 
 	// results
 	NumRows uint64
@@ -39,7 +43,7 @@ func (q *Query) Limit(limit int64) *Query {
 }
 
 func (q *Query) Offset(offset interface{}) *Query {
-	q.offset = encKey(offset)
+	q.offset = encodeKeyValue(bin.NewBuffer(nil), offset).Bytes()
 	return q
 }
 
@@ -58,8 +62,8 @@ func (q *Query) Order(desc bool) *Query {
 	return q
 }
 
-func (q *Query) FilterRecord(fn func(id uint64) bool) *Query {
-	q.recFilter = fn
+func (q *Query) Filter(fn func(Record) bool) *Query {
+	q.fnFilter = fn
 	return q
 }
 

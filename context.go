@@ -52,7 +52,7 @@ func (c *Context) GetBigInt(key []byte) (num *big.Int, err error) {
 // GetID returns uint64-data by key
 func (c *Context) GetID(key []byte) (uint64, error) {
 	if data, err := c.Get(key); err == nil {
-		return DecodeID(data)
+		return decodeUint(data)
 	} else if err == leveldb.ErrNotFound {
 		return 0, nil
 	} else {
@@ -74,7 +74,7 @@ func (c *Context) GetVar(key []byte, v interface{}) (bool, error) {
 		return false, nil
 	}
 	if err == nil {
-		err = DecodeData(data, v)
+		err = decodeValue(data, v)
 	}
 	if err != nil {
 		return false, err
@@ -99,14 +99,14 @@ func (c *Context) Exists(q *Query) (ok bool, err error) {
 }
 
 // Fetch fetches raw-data by query
-func (c *Context) Fetch(q *Query, fnRow func(key, value []byte) error) error {
-	return c.execute(q, fnRow)
+func (c *Context) Fetch(q *Query, fnRecord func(rec Record) error) error {
+	return c.execute(q, fnRecord)
 }
 
 // FetchID fetches uint64-ID by query
 func (c *Context) FetchID(q *Query, fnRow func(id uint64) error) error {
-	return c.execute(q, func(k, v []byte) error {
-		if id, err := DecodeID(v); err != nil {
+	return c.execute(q, func(rec Record) error {
+		if id, err := decodeUint(rec.Value); err != nil {
 			return err
 		} else {
 			return fnRow(id)
@@ -116,8 +116,8 @@ func (c *Context) FetchID(q *Query, fnRow func(id uint64) error) error {
 
 // FetchObject fetches object by query
 func (c *Context) FetchObject(q *Query, obj interface{}, fnRow func() error) error {
-	return c.execute(q, func(_, data []byte) error {
-		if err := DecodeData(data, obj); err != nil {
+	return c.execute(q, func(rec Record) error {
+		if err := decodeValue(rec.Value, obj); err != nil {
 			return err
 		} else {
 			return fnRow()
@@ -128,8 +128,8 @@ func (c *Context) FetchObject(q *Query, obj interface{}, fnRow func() error) err
 // QueryValue returns first row-value by query
 func (c *Context) QueryValue(q *Query, v interface{}) error {
 	q.Limit(1)
-	return c.execute(q, func(_, data []byte) error {
-		return DecodeData(data, v)
+	return c.Fetch(q, func(rec Record) error {
+		return rec.Decode(v)
 	})
 }
 
@@ -151,7 +151,7 @@ func (c *Context) QueryID(q *Query) (id uint64, err error) {
 //------ private ------
 var tail1024 = bytes.Repeat([]byte{255}, 1024)
 
-func (c *Context) execute(q *Query, fnRow func(key, val []byte) error) (err error) {
+func (c *Context) execute(q *Query, fnRow func(rec Record) error) (err error) {
 	q.NumRows = 0
 	pfx := q.filter
 	pfxLen := len(pfx)
@@ -165,8 +165,7 @@ func (c *Context) execute(q *Query, fnRow func(key, val []byte) error) (err erro
 
 	var iter iterator.Iterator
 	var iterNext func() bool
-	var rowID uint64
-	fnRecordFilter := q.recFilter
+	var fnRecordFilter = q.fnFilter
 
 	c.rmx.RLock()
 	defer c.rmx.RUnlock()
@@ -207,17 +206,13 @@ func (c *Context) execute(q *Query, fnRow func(key, val []byte) error) (err erro
 			//}
 		}
 		val := iter.Value()
-		if fnRecordFilter != nil {
-			if rowID, err = DecodeID(val); err != nil {
-				break
-			} else if !fnRecordFilter(rowID) {
-				continue
-			}
+		if fnRecordFilter != nil && !fnRecordFilter(Record{key, val}) {
+			continue
 		}
 		q.offset = key[pfxLen:]
 		limit--
 		if fnRow != nil {
-			if err = fnRow(key, val); err != nil {
+			if err = fnRow(Record{key, val}); err != nil {
 				break
 			}
 		}

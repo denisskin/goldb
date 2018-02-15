@@ -41,9 +41,9 @@ func (s *Storage) Dump(filepath string, options *DumpOptions) (err error) {
 
 	const SyncBatchSize = 32 * 1024 * 1024 // 32 MiB
 	var nextSyncVol int64
-	err = s.Fetch(q, func(key, value []byte) error {
-		w.WriteVar(key)
-		w.WriteVar(value)
+	err = s.Fetch(q, func(rec Record) error {
+		w.WriteVar(rec.Key)
+		w.WriteVar(rec.Value)
 		if w.CntWritten > nextSyncVol {
 			nextSyncVol += SyncBatchSize
 			if err := file.Sync(); err != nil {

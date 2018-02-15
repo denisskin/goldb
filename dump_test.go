@@ -40,11 +40,11 @@ func TestStorage_Restore(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	store1.Fetch(NewQuery(TestTable), func(key, val1 []byte) error {
-		val2, err := store2.Get(key)
+	store1.Fetch(NewQuery(TestTable), func(rec Record) error {
+		val, err := store2.Get(rec.Key)
 
 		assert.NoError(t, err)
-		assert.Equal(t, val1, val2)
+		assert.Equal(t, rec.Value, val)
 		return err
 	})
 }

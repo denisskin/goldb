@@ -1,65 +1,52 @@
 package goldb
 
-import (
-	"crypto/sha256"
-
-	"github.com/denisskin/bin"
-)
+import "github.com/denisskin/bin"
 
 type Entity int
 
-func PKey(tableID Entity, id uint64) []byte {
-	return append(encKey(int(tableID)), encKey(id)...)
-}
-
-func Key(entityID Entity, v ...interface{}) []byte {
-	k := encKey(int(entityID))
-	for _, val := range v {
-		k = append(k, encKey(val)...)
+func Key(entityID Entity, vv ...interface{}) []byte {
+	w := bin.NewBuffer(nil)
+	w.WriteVarInt(int(entityID))
+	for _, v := range vv {
+		encodeKeyValue(w, v)
 	}
-	return k
+	return w.Bytes()
 }
 
-func HashKey(entityID Entity, v ...interface{}) []byte {
-	k := encKey(int(entityID))
-	for _, val := range v {
-		hash := sha256.Sum256(append(k, encKey(val)...))
-		k = hash[:]
+func PrimaryKey(tableID Entity, id uint64) []byte {
+	return Key(tableID, id)
+}
+
+func encodeKeyValue(w *bin.Buffer, v interface{}) *bin.Buffer {
+	if s, ok := v.(string); ok {
+		w.Write(append([]byte(s), 0x00))
+	} else {
+		w.WriteVar(v)
 	}
-	return k
+	return w
 }
 
-func encKey(v interface{}) []byte {
-	switch val := v.(type) {
-	case []byte:
-		return val
-	case string:
-		return append([]byte(val), 0x00)
-	}
-	return bin.Encode(v)
-}
-
-func EncodeData(v interface{}) []byte {
+func encodeValue(v interface{}) []byte {
 	if obj, ok := v.(bin.Encoder); ok {
 		return obj.Encode()
 	}
 	return bin.Encode(v)
 }
 
-func DecodeData(data []byte, v interface{}) error {
+func decodeValue(data []byte, v interface{}) error {
 	if obj, ok := v.(bin.Decoder); ok {
 		return obj.Decode(data)
 	}
 	return bin.Decode(data, v)
 }
 
-func EncodeID(id uint64) []byte {
+func encodeUint(id uint64) []byte {
 	buf := bin.NewBuffer(nil)
 	buf.WriteVarUint64(id)
 	return buf.Bytes()
 }
 
-func DecodeID(data []byte) (uint64, error) {
+func decodeUint(data []byte) (uint64, error) {
 	r := bin.NewBuffer(data)
 	return r.ReadVarUint64()
 }

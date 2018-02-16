@@ -3,10 +3,11 @@ package goldb
 import (
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type User struct {

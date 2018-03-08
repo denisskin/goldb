@@ -125,12 +125,7 @@ func (c *Context) FetchID(q *Query, fnRow func(id uint64) error) error {
 	})
 }
 
-var errBreak = errors.New("break of fetching")
-
-// Break breaks fetching
-func Break() {
-	panic(errBreak)
-}
+var Break = errors.New("break of fetching")
 
 // QueryValue returns first row-value by query
 func (c *Context) QueryValue(q *Query, v interface{}) error {
@@ -153,6 +148,16 @@ func (c *Context) QueryIDs(q *Query) (ids []uint64, err error) {
 // QueryID returns first row-id by query
 func (c *Context) QueryID(q *Query) (id uint64, err error) {
 	err = c.QueryValue(q, &id)
+	return
+}
+
+// LastRowID returns rowID of last record in table
+func (c *Context) LastRowID(tableID Entity) (rowID uint64, err error) {
+	q := NewQuery(tableID).Last()
+	err = c.Fetch(q, func(rec Record) error {
+		rec.DecodeKey(&rowID)
+		return nil
+	})
 	return
 }
 
@@ -189,7 +194,7 @@ func (c *Context) execute(q *Query, fnRow func(rec Record) error) (err error) {
 	}
 
 	defer func() {
-		if r, _ := recover().(error); r != nil && r != errBreak {
+		if r, _ := recover().(error); r != nil && r != Break {
 			err = r
 		}
 		iter.Release()
@@ -220,6 +225,9 @@ func (c *Context) execute(q *Query, fnRow func(rec Record) error) (err error) {
 		limit--
 		if fnRow != nil {
 			if err = fnRow(Record{key, val}); err != nil {
+				if err == Break {
+					err = nil
+				}
 				break
 			}
 		}

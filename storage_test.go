@@ -15,8 +15,12 @@ const (
 	TestTable = iota + 1
 )
 
+func newTestStorage() *Storage {
+	return NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+}
+
 func TestStorage_Close(t *testing.T) {
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 
 	err1 := store.Close()
@@ -28,7 +32,7 @@ func TestStorage_Close(t *testing.T) {
 }
 
 func TestContext_Fetch(t *testing.T) {
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 
 	// put data
@@ -62,7 +66,7 @@ func fileExists(path string) bool {
 }
 
 func TestStorage_Vacuum(t *testing.T) {
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 
 	//------- insert test data ------------
@@ -110,7 +114,7 @@ func TestStorage_Vacuum(t *testing.T) {
 }
 
 func TestStorage_Vacuum_Parallel(t *testing.T) {
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 
 	// insert test data

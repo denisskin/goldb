@@ -51,22 +51,23 @@ func (t *Transaction) SequenceNextVal(tab Entity) (seq uint64) {
 	return seq
 }
 
-func (t *Transaction) Put(key, data []byte) {
+func (t *Transaction) Put(key, data []byte) error {
 	if err := t.tr.Put(key, data, t.WriteOptions); err != nil {
 		t.Fail(err)
 	}
+	return nil
 }
 
-func (t *Transaction) PutID(key []byte, id uint64) {
-	t.Put(key, encodeUint(id))
+func (t *Transaction) PutID(key []byte, id uint64) error {
+	return t.Put(key, encodeUint(id))
 }
 
-func (t *Transaction) PutInt(key []byte, num int64) {
-	t.PutVar(key, num)
+func (t *Transaction) PutInt(key []byte, num int64) error {
+	return t.PutVar(key, num)
 }
 
-func (t *Transaction) PutVar(key []byte, v interface{}) {
-	t.Put(key, encodeValue(v))
+func (t *Transaction) PutVar(key []byte, v interface{}) error {
+	return t.Put(key, encodeValue(v))
 }
 
 // Increment increments int-value by key
@@ -79,8 +80,9 @@ func (t *Transaction) Increment(key []byte, delta int64) (v int64) {
 	return
 }
 
-func (t *Transaction) Delete(key []byte) {
+func (t *Transaction) Delete(key []byte) error {
 	if err := t.tr.Delete(key, t.WriteOptions); err != nil {
 		t.Fail(err)
 	}
+	return nil
 }

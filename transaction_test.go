@@ -2,9 +2,6 @@ package goldb
 
 import (
 	"errors"
-	"fmt"
-	"math/rand"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +13,7 @@ type User struct {
 }
 
 func TestTransaction_PutVar(t *testing.T) {
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 
 	// put vars
@@ -43,7 +40,7 @@ func TestTransaction_PutVar(t *testing.T) {
 }
 
 func TestTransaction_GetVar(t *testing.T) {
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 
 	var a, b, c struct {
@@ -77,7 +74,7 @@ func TestTransaction_GetVar(t *testing.T) {
 }
 
 func TestTransaction_Discard(t *testing.T) {
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 
 	var a, b struct {
@@ -104,7 +101,7 @@ func TestTransaction_Discard(t *testing.T) {
 }
 
 func TestTransaction_SequenceNextVal(t *testing.T) {
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 
 	var a, b, c, d uint64
@@ -128,7 +125,7 @@ func TestTransaction_SequenceNextVal(t *testing.T) {
 
 func TestTransaction_Increment(t *testing.T) {
 	var v1 int64
-	store := NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	store := newTestStorage()
 	defer store.Drop()
 	key := Key(TestTable, "id")
 	store.Exec(func(tr *Transaction) {
@@ -145,4 +142,20 @@ func TestTransaction_Increment(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(123), v1)
 	assert.Equal(t, int64(123), v2)
+}
+
+func TestTransaction_Exec_fail(t *testing.T) {
+	store := newTestStorage()
+	defer store.Drop()
+
+	key := Key(TestTable, "id")
+	store.Exec(func(tr *Transaction) {
+		tr.PutVar(key, 666) // put int
+	})
+
+	err := store.Exec(func(tr *Transaction) {
+		tr.GetVar(key, &User{}) // fail read value
+	})
+
+	assert.Error(t, err)
 }

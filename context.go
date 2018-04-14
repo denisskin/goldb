@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"sync"
 
+	"sync/atomic"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -14,12 +16,13 @@ import (
 
 // Context is context of reading data via get or fetch-methods.
 // Context is implemented by Transaction and Storage
-type Context struct {
+type context struct {
 	qCtx         queryContext
 	fPanicOnErr  bool
 	rmx          sync.RWMutex
 	ReadOptions  *opt.ReadOptions
 	WriteOptions *opt.WriteOptions
+	countReads   int64
 }
 
 type queryContext interface {
@@ -27,8 +30,16 @@ type queryContext interface {
 	NewIterator(slice *util.Range, ro *opt.ReadOptions) iterator.Iterator
 }
 
+// CountReads returns number of waiting reads
+func (c *context) CountReads() int64 {
+	return atomic.LoadInt64(&c.countReads)
+}
+
 // Get returns raw data by key
-func (c *Context) Get(key []byte) ([]byte, error) {
+func (c *context) Get(key []byte) ([]byte, error) {
+	atomic.AddInt64(&c.countReads, 1)
+	defer atomic.AddInt64(&c.countReads, -1)
+
 	c.rmx.RLock()
 	defer c.rmx.RUnlock()
 
@@ -43,19 +54,19 @@ func (c *Context) Get(key []byte) ([]byte, error) {
 }
 
 // GetInt returns uint64-data by key
-func (c *Context) GetInt(key []byte) (num int64, err error) {
+func (c *context) GetInt(key []byte) (num int64, err error) {
 	_, err = c.GetVar(key, &num)
 	return
 }
 
 // GetBigInt returns bigint-number by key
-func (c *Context) GetBigInt(key []byte) (num *big.Int, err error) {
+func (c *context) GetBigInt(key []byte) (num *big.Int, err error) {
 	_, err = c.GetVar(key, &num)
 	return
 }
 
 // GetID returns uint64-data by key
-func (c *Context) GetID(key []byte) (v uint64, err error) {
+func (c *context) GetID(key []byte) (v uint64, err error) {
 	data, err := c.Get(key)
 	if err != nil {
 		return
@@ -71,14 +82,14 @@ func (c *Context) GetID(key []byte) (v uint64, err error) {
 }
 
 // GetStr returns string-data by key
-func (c *Context) GetStr(key []byte) (s string, err error) {
+func (c *context) GetStr(key []byte) (s string, err error) {
 	_, err = c.GetVar(key, &s)
 	return
 }
 
 // GetVar get data by key and unmarshal to to variable;
 // Returns true when data by key existed
-func (c *Context) GetVar(key []byte, v interface{}) (bool, error) {
+func (c *context) GetVar(key []byte, v interface{}) (bool, error) {
 	if data, err := c.Get(key); err != nil {
 		return false, err
 	} else if data == nil {
@@ -94,14 +105,14 @@ func (c *Context) GetVar(key []byte, v interface{}) (bool, error) {
 }
 
 // GetNumRows fetches data by query and calculates count rows
-func (c *Context) GetNumRows(q *Query) (numRows uint64, err error) {
+func (c *context) GetNumRows(q *Query) (numRows uint64, err error) {
 	err = c.execute(q, nil)
 	numRows = q.NumRows
 	return
 }
 
 // Exists returns true when exists results by query
-func (c *Context) Exists(q *Query) (ok bool, err error) {
+func (c *context) Exists(q *Query) (ok bool, err error) {
 	var qCopy = *q
 	qCopy.Limit(1)
 	err = c.execute(&qCopy, nil)
@@ -110,12 +121,12 @@ func (c *Context) Exists(q *Query) (ok bool, err error) {
 }
 
 // Fetch fetches data by query
-func (c *Context) Fetch(q *Query, fnRecord func(rec Record) error) error {
+func (c *context) Fetch(q *Query, fnRecord func(rec Record) error) error {
 	return c.execute(q, fnRecord)
 }
 
 // FetchID fetches uint64-ID by query
-func (c *Context) FetchID(q *Query, fnRow func(id uint64) error) error {
+func (c *context) FetchID(q *Query, fnRow func(id uint64) error) error {
 	return c.execute(q, func(rec Record) error {
 		if id, err := decodeUint(rec.Value); err != nil {
 			return err
@@ -128,7 +139,7 @@ func (c *Context) FetchID(q *Query, fnRow func(id uint64) error) error {
 var Break = errors.New("break of fetching")
 
 // QueryValue returns first row-value by query
-func (c *Context) QueryValue(q *Query, v interface{}) error {
+func (c *context) QueryValue(q *Query, v interface{}) error {
 	q.Limit(1)
 	return c.Fetch(q, func(rec Record) error {
 		rec.Decode(v)
@@ -137,7 +148,7 @@ func (c *Context) QueryValue(q *Query, v interface{}) error {
 }
 
 // QueryIDs returns slice of row-id by query
-func (c *Context) QueryIDs(q *Query) (ids []uint64, err error) {
+func (c *context) QueryIDs(q *Query) (ids []uint64, err error) {
 	err = c.FetchID(q, func(id uint64) error {
 		ids = append(ids, id)
 		return nil
@@ -146,13 +157,13 @@ func (c *Context) QueryIDs(q *Query) (ids []uint64, err error) {
 }
 
 // QueryID returns first row-id by query
-func (c *Context) QueryID(q *Query) (id uint64, err error) {
+func (c *context) QueryID(q *Query) (id uint64, err error) {
 	err = c.QueryValue(q, &id)
 	return
 }
 
 // LastRowID returns rowID of last record in table
-func (c *Context) LastRowID(tableID Entity) (rowID uint64, err error) {
+func (c *context) LastRowID(tableID Entity) (rowID uint64, err error) {
 	q := NewQuery(tableID).Last()
 	err = c.Fetch(q, func(rec Record) error {
 		rec.DecodeKey(&rowID)
@@ -164,7 +175,7 @@ func (c *Context) LastRowID(tableID Entity) (rowID uint64, err error) {
 //------ private ------
 var tail1024 = bytes.Repeat([]byte{255}, 1024)
 
-func (c *Context) execute(q *Query, fnRow func(rec Record) error) (err error) {
+func (c *context) execute(q *Query, fnRow func(rec Record) error) (err error) {
 	q.NumRows = 0
 	pfx := q.filter
 	pfxLen := len(pfx)

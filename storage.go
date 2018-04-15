@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"sync/atomic"
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -14,11 +16,13 @@ import (
 )
 
 type Storage struct {
-	Context
+	context
 	dir string
 	db  *leveldb.DB
 	op  *opt.Options
 	mx  sync.Mutex
+
+	cntWaitingTrans int64
 }
 
 func NewStorage(dir string, op *opt.Options) (s *Storage) {
@@ -51,7 +55,7 @@ func (s *Storage) Open() error {
 		return err
 	}
 	s.db = db
-	s.Context.qCtx = db
+	s.qCtx = db
 	return nil
 }
 
@@ -105,9 +109,16 @@ func (s *Storage) Truncate() error {
 	return s.Open()
 }
 
+func (s *Storage) WaitingTransactions() int64 {
+	return atomic.LoadInt64(&s.cntWaitingTrans)
+}
+
 // Exec executes transaction.
 // The executing transaction can be discard by methods tx.Fail(err) or by panic(err)
 func (s *Storage) Exec(fn func(tx *Transaction)) (err error) {
+	atomic.AddInt64(&s.cntWaitingTrans, 1)
+	defer atomic.AddInt64(&s.cntWaitingTrans, -1)
+
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
@@ -116,10 +127,10 @@ func (s *Storage) Exec(fn func(tx *Transaction)) (err error) {
 	if err != nil {
 		return
 	}
-	t.Context.qCtx = t.tr
-	t.Context.fPanicOnErr = true
-	t.Context.ReadOptions = s.ReadOptions
-	t.Context.WriteOptions = s.WriteOptions
+	t.qCtx = t.tr
+	t.fPanicOnErr = true
+	t.ReadOptions = s.ReadOptions
+	t.WriteOptions = s.WriteOptions
 
 	defer func() {
 		if e, _ := recover().(error); e != nil {

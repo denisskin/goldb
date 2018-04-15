@@ -3,10 +3,9 @@ package goldb
 import "github.com/syndtr/goleveldb/leveldb"
 
 type Transaction struct {
-	Context
-	tr   *leveldb.Transaction
-	seq  map[Entity]uint64
-	Data interface{}
+	context
+	tr  *leveldb.Transaction
+	seq map[Entity]uint64
 }
 
 func (t *Transaction) Discard() {

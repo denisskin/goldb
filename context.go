@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math/big"
 	"sync"
-
 	"sync/atomic"
 
 	"github.com/syndtr/goleveldb/leveldb"

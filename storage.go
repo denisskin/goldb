@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-
 	"sync/atomic"
 
 	"github.com/syndtr/goleveldb/leveldb"

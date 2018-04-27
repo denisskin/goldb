@@ -31,25 +31,39 @@ func (r Record) Table() Entity {
 	return Entity(id)
 }
 
-func (r Record) DecodeKey(vv ...interface{}) {
+func (r Record) RowID() (id uint64) {
+	r.MustDecodeKey(&id)
+	return
+}
+
+func (r Record) MustDecodeKey(vv ...interface{}) {
+	panicOnErr(r.DecodeKey(vv...))
+}
+
+func (r Record) DecodeKey(vv ...interface{}) (err error) {
 	buf := bin.NewBuffer(r.Key)
-	buf.ReadVarInt64() // read tableID
-	panicOnErr(buf.Error())
+	if _, err = buf.ReadVarInt64(); err != nil { // read tableID
+		return
+	}
 	for _, v := range vv {
 		if str, ok := v.(*string); ok { // special case - read string in Key
 			if n := bytes.IndexByte(r.Key[int(buf.CntRead):], 0); n < 0 {
-				panic(errInvalidKeyData)
+				return errInvalidKeyData
 			} else {
 				s := make([]byte, n+1)
-				if _, err := buf.Read(s); err == nil {
-					*str = string(s[:n])
+				if _, err = buf.Read(s); err != nil {
+					return
 				}
+				*str = string(s[:n])
 			}
 		} else {
 			buf.ReadVar(v)
 		}
-		panicOnErr(buf.Error())
+		if err = buf.Error(); err != nil {
+			return
+		}
 	}
+	return
 }
 
 func (r Record) KeyOffset(q *Query) []byte {
@@ -57,31 +71,30 @@ func (r Record) KeyOffset(q *Query) []byte {
 }
 
 //------ value --------------
-func (r Record) RowID() (id uint64) {
-	panicOnErr(bin.Decode(r.Key, new(int64), &id))
-	return
+func (r Record) MustDecode(v interface{}) {
+	panicOnErr(r.Decode(v))
 }
 
-func (r Record) Decode(v interface{}) {
-	panicOnErr(decodeValue(r.Value, v))
+func (r Record) Decode(v interface{}) error {
+	return decodeValue(r.Value, v)
 }
 
 func (r Record) ValueID() (id uint64) {
-	r.Decode(&id)
+	r.MustDecode(&id)
 	return
 }
 
 func (r Record) ValueStr() (v string) {
-	r.Decode(&v)
+	r.MustDecode(&v)
 	return
 }
 
 func (r Record) ValueInt() (v int64) {
-	r.Decode(&v)
+	r.MustDecode(&v)
 	return
 }
 
 func (r Record) ValueBigInt() (v *big.Int) {
-	r.Decode(&v)
+	r.MustDecode(&v)
 	return
 }

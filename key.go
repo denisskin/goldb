@@ -1,8 +1,20 @@
 package goldb
 
-import "github.com/denisskin/bin"
+import (
+	"reflect"
+
+	"github.com/denisskin/bin"
+)
 
 type Entity int
+
+type DBEncoder interface {
+	DBEncode() []byte
+}
+
+type DBDecoder interface {
+	DBDecode([]byte) error
+}
 
 func Key(entityID Entity, vv ...interface{}) []byte {
 	w := bin.NewBuffer(nil)
@@ -27,17 +39,39 @@ func encodeKeyValue(w *bin.Buffer, v interface{}) *bin.Buffer {
 }
 
 func encodeValue(v interface{}) []byte {
-	if obj, ok := v.(bin.Encoder); ok {
+	switch obj := v.(type) {
+	case DBEncoder:
+		return obj.DBEncode()
+	case bin.Encoder:
 		return obj.Encode()
+	default:
+		return bin.Encode(v)
 	}
-	return bin.Encode(v)
 }
 
 func decodeValue(data []byte, v interface{}) error {
-	if obj, ok := v.(bin.Decoder); ok {
+	switch obj := v.(type) {
+	case DBDecoder:
+		return obj.DBDecode(data)
+	case bin.Decoder:
 		return obj.Decode(data)
+	default:
+		if pp := reflect.ValueOf(v); pp.Kind() == reflect.Ptr && !pp.IsNil() {
+			p := pp.Elem()
+			if p.Kind() == reflect.Ptr {
+				// read object in case:  var obj*Object; r.Read(&obj)
+				objPtr := reflect.New(reflect.TypeOf(p.Interface()).Elem())
+				if obj, ok := objPtr.Interface().(bin.Decoder); ok {
+					if err := obj.Decode(data); err != nil {
+						return err
+					}
+					p.Set(objPtr)
+					return nil
+				}
+			}
+		}
+		return bin.Decode(data, v)
 	}
-	return bin.Decode(data, v)
 }
 
 func encodeUint(id uint64) []byte {

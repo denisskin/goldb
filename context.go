@@ -141,7 +141,7 @@ var Break = errors.New("break of fetching")
 func (c *context) QueryValue(q *Query, v interface{}) error {
 	q.Limit(1)
 	return c.Fetch(q, func(rec Record) error {
-		rec.Decode(v)
+		rec.MustDecode(v)
 		return nil
 	})
 }
@@ -165,7 +165,7 @@ func (c *context) QueryID(q *Query) (id uint64, err error) {
 func (c *context) LastRowID(tableID Entity) (rowID uint64, err error) {
 	q := NewQuery(tableID).Last()
 	err = c.Fetch(q, func(rec Record) error {
-		rec.DecodeKey(&rowID)
+		rec.MustDecodeKey(&rowID)
 		return nil
 	})
 	return

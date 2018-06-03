@@ -25,6 +25,11 @@ func NewQuery(idxID Entity, filterVal ...interface{}) *Query {
 	}
 }
 
+func (q *Query) AddFilter(filterVal ...interface{}) *Query {
+	q.filter = append(q.filter, Key(0, filterVal...)[1:]...)
+	return q
+}
+
 func (q *Query) String() string {
 	return fmt.Sprintf("{filter:%x, offset:%x, limit:%d, desc:%v}", q.filter, q.offset, q.limit, q.desc)
 }
@@ -62,7 +67,7 @@ func (q *Query) Order(desc bool) *Query {
 	return q
 }
 
-func (q *Query) Filter(fn func(Record) bool) *Query {
+func (q *Query) FilterFn(fn func(Record) bool) *Query {
 	q.fnFilter = fn
 	return q
 }

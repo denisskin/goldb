@@ -4,8 +4,9 @@ import "github.com/syndtr/goleveldb/leveldb"
 
 type Transaction struct {
 	context
-	tr  *leveldb.Transaction
-	seq map[Entity]uint64
+	tr           *leveldb.Transaction
+	seq          map[Entity]uint64
+	countUpdates int64
 }
 
 func (t *Transaction) Discard() {
@@ -54,6 +55,7 @@ func (t *Transaction) Put(key, data []byte) error {
 	if err := t.tr.Put(key, data, t.WriteOptions); err != nil {
 		t.Fail(err)
 	}
+	t.countUpdates++
 	return nil
 }
 
@@ -83,5 +85,10 @@ func (t *Transaction) Delete(key []byte) error {
 	if err := t.tr.Delete(key, t.WriteOptions); err != nil {
 		t.Fail(err)
 	}
+	t.countUpdates++
 	return nil
+}
+
+func (t *Transaction) CountUpdates() int64 {
+	return t.countUpdates
 }

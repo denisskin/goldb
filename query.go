@@ -47,8 +47,8 @@ func (q *Query) Limit(limit int64) *Query {
 	return q
 }
 
-func (q *Query) Offset(offset interface{}) *Query {
-	q.offset = encodeKeyValue(bin.NewBuffer(nil), offset).Bytes()
+func (q *Query) Offset(offset ...interface{}) *Query {
+	q.offset = encodeKeyValues(bin.NewBuffer(nil), offset).Bytes()
 	return q
 }
 

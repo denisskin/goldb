@@ -19,9 +19,7 @@ type DBDecoder interface {
 func Key(entityID Entity, vv ...interface{}) []byte {
 	w := bin.NewBuffer(nil)
 	w.WriteVarInt(int(entityID))
-	for _, v := range vv {
-		encodeKeyValue(w, v)
-	}
+	encodeKeyValues(w, vv)
 	return w.Bytes()
 }
 
@@ -29,11 +27,13 @@ func PrimaryKey(tableID Entity, id uint64) []byte {
 	return Key(tableID, id)
 }
 
-func encodeKeyValue(w *bin.Buffer, v interface{}) *bin.Buffer {
-	if s, ok := v.(string); ok {
-		w.Write(append([]byte(s), 0x00))
-	} else {
-		w.WriteVar(v)
+func encodeKeyValues(w *bin.Buffer, vv []interface{}) *bin.Buffer {
+	for _, v := range vv {
+		if s, ok := v.(string); ok {
+			w.Write(append([]byte(s), 0x00))
+		} else {
+			w.WriteVar(v)
+		}
 	}
 	return w
 }

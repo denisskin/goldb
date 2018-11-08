@@ -1,6 +1,10 @@
 package goldb
 
-import "github.com/syndtr/goleveldb/leveldb"
+import (
+	"math/big"
+
+	"github.com/syndtr/goleveldb/leveldb"
+)
 
 type Transaction struct {
 	context
@@ -79,6 +83,21 @@ func (t *Transaction) Increment(key []byte, delta int64) (v int64) {
 	v += delta
 	t.Put(key, encodeValue(v))
 	return
+}
+
+func (t *Transaction) IncrementBig(key []byte, delta *big.Int) *big.Int {
+	v, err := t.GetBigInt(key)
+	if err != nil {
+		t.Fail(err)
+	}
+	if v == nil {
+		v = new(big.Int)
+	}
+	if delta != nil && delta.Sign() != 0 {
+		v = v.Add(v, delta)
+		t.Put(key, encodeValue(v))
+	}
+	return v
 }
 
 func (t *Transaction) Delete(key []byte) error {

@@ -1,6 +1,7 @@
 package goldb
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -132,9 +133,9 @@ func (s *Storage) Exec(fn func(tx *Transaction)) (err error) {
 	t.WriteOptions = s.WriteOptions
 
 	defer func() {
-		if e, _ := recover().(error); e != nil {
+		if r := recover(); r != nil {
 			t.Discard()
-			err = e
+			err = fmt.Errorf("goldb.Storage.Exec-error: %v", r)
 		}
 	}()
 

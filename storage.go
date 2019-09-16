@@ -168,7 +168,8 @@ func (s *Storage) Vacuum() (err error) {
 		return
 	}
 
-	s.rmx.Lock() // wait for all readers
+	// waiting for all readers
+	s.rmx.Lock()
 	defer s.rmx.Unlock()
 
 	// close old db
@@ -240,6 +241,10 @@ func (s *Storage) copyDataToNewDB(dir string) (err error) {
 		}
 		tr = nil
 	}
+	if err = db.Close(); err != nil {
+		return
+	}
+	os.Remove(dir + "/LOG.old")
 	return
 }
 

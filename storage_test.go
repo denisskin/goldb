@@ -2,10 +2,10 @@ package goldb
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -16,7 +16,7 @@ const (
 )
 
 func newTestStorage() *Storage {
-	return NewStorage(fmt.Sprintf("%s/test-goldb-%x.db", os.TempDir(), rand.Int()), nil)
+	return NewStorage(fmt.Sprintf("%s/test-goldb-%016x.db", os.TempDir(), time.Now().UnixNano()), nil)
 }
 
 func TestStorage_Close(t *testing.T) {
@@ -36,7 +36,7 @@ func TestContext_Fetch(t *testing.T) {
 	defer store.Drop()
 
 	// put data
-	store.Exec(func(tr *Transaction) {
+	store.ExecBatch(func(tr *Transaction) {
 		tr.PutVar(Key(TestTable, "A", 1), "Alice")
 		tr.PutVar(Key(TestTable, "B", 2), "Bob")
 		tr.PutVar(Key(TestTable, "C", 3), "Cat")
@@ -70,11 +70,10 @@ func TestStorage_Vacuum(t *testing.T) {
 	defer store.Drop()
 
 	//------- insert test data ------------
-	const countRows = 3000
+	const countRows = 200
 	for i := 0; i < countRows; i++ {
-		store.Exec(func(tr *Transaction) {
-			tr.PutVar(Key(TestTable, "LongLongLongKey%d", i*15551%countRows), "String value")
-		})
+		err := store.PutVar(Key(TestTable, "LongLongLongLongLongLongLongLongLongLongLongLongKey%d", i*15551%countRows), "String value")
+		assert.NoError(t, err)
 	}
 	sizeBefore := store.Size()
 	t.Log("\tStorage.Vacuum: start.  Storage-size: ", sizeBefore)
@@ -88,10 +87,9 @@ func TestStorage_Vacuum(t *testing.T) {
 			defer wg.Done()
 			for i := 0; !fFinishVacuum; i++ {
 				i %= countRows
-				v, _ := store.GetStr(Key(TestTable, "LongLongLongKey%d", i*15551%countRows))
-				if !assert.Equal(t, "String value", v) {
-					break
-				}
+				v, err := store.GetStr(Key(TestTable, "LongLongLongLongLongLongLongLongLongLongLongLongKey%d", i*15551%countRows))
+				assert.NoError(t, err)
+				assert.Equal(t, "String value", v)
 			}
 		}()
 	}
@@ -104,6 +102,13 @@ func TestStorage_Vacuum(t *testing.T) {
 
 	fFinishVacuum = true
 	wg.Wait()
+
+	//--- check data
+	for i := 0; i < countRows; i++ {
+		v, err := store.GetStr(Key(TestTable, "LongLongLongLongLongLongLongLongLongLongLongLongKey%d", i*15551%countRows))
+		assert.NoError(t, err)
+		assert.Equal(t, "String value", v)
+	}
 
 	//----- asserts ------------
 	assert.NoError(t, err)
@@ -118,7 +123,7 @@ func TestStorage_Vacuum_Parallel(t *testing.T) {
 	defer store.Drop()
 
 	// insert test data
-	const countRows = 1000
+	const countRows = 200
 	for i := 0; i < countRows; i++ {
 		store.Exec(func(tr *Transaction) {
 			tr.PutVar(Key(TestTable, i), "First value")

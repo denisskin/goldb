@@ -2,7 +2,6 @@ package goldb
 
 import (
 	"sync/atomic"
-	"time"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -11,20 +10,18 @@ func (s *Storage) ExecBatch(fn func(tx *Transaction)) error {
 	atomic.AddInt64(&s.cntWaitingTrans, 1)
 	defer atomic.AddInt64(&s.cntWaitingTrans, -1)
 
-	var cl chan struct{}
-	var pErr *error
-
 	// put tx to batch
 	s.batchMx.Lock()
-	if !s.batchSync {
-		s.batchSync = true
+	if s.batchExst == nil {
+		s.batchExst = make(chan struct{})
 		go s.startBatchSync()
 	}
-	if cl, pErr = s.batchCl, s.batchErr; cl == nil { // new batch
-		cl, pErr = make(chan struct{}), new(error)
-		s.batchCl, s.batchErr = cl, pErr
+	if s.batchCl == nil { // new batch
+		s.batchCl, s.batchErr = make(chan struct{}), new(error)
 	}
+	cl, pErr := s.batchCl, s.batchErr
 	s.batchTxs = append(s.batchTxs, fn)
+	close(s.batchExst)
 	s.batchMx.Unlock()
 	//---
 
@@ -35,20 +32,19 @@ func (s *Storage) ExecBatch(fn func(tx *Transaction)) error {
 func (s *Storage) startBatchSync() {
 	defer func() {
 		s.batchMx.Lock()
-		s.batchSync = false
+		s.batchExst = nil
 		s.batchMx.Unlock()
 	}()
 	for {
+		<-s.batchExst // waiting for batch txs
+
 		// pop all txs
 		s.batchMx.Lock()
 		txs, cl, pErr := s.batchTxs, s.batchCl, s.batchErr
-		s.batchTxs, s.batchCl, s.batchErr = nil, nil, nil
+		s.batchExst, s.batchTxs, s.batchCl, s.batchErr = make(chan struct{}), nil, nil, nil
 		s.batchMx.Unlock()
 		//
-		if len(txs) == 0 {
-			time.Sleep(time.Millisecond)
-			continue
-		}
+
 		// commit
 		err := s.Exec(func(t *Transaction) {
 			for _, fn := range txs {

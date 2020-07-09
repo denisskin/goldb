@@ -26,7 +26,7 @@ type Storage struct {
 
 	// batch params
 	batchMx   sync.Mutex
-	batchSync bool
+	batchExst chan struct{}
 	batchCl   chan struct{}
 	batchErr  *error
 	batchTxs  []func(*Transaction)

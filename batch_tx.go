@@ -21,7 +21,9 @@ func (s *Storage) ExecBatch(fn func(tx *Transaction)) error {
 	}
 	cl, pErr := s.batchCl, s.batchErr
 	s.batchTxs = append(s.batchTxs, fn)
-	close(s.batchExst)
+	if len(s.batchTxs) == 1 {
+		close(s.batchExst)
+	}
 	s.batchMx.Unlock()
 	//---
 

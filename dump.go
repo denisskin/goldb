@@ -71,6 +71,14 @@ func (s *Storage) Restore(filepath string) (err error) {
 	s.mx.Lock()
 	defer s.mx.Unlock()
 
+	// truncate db
+	if err = s.Drop(); err != nil {
+		return
+	}
+	if err = s.Open(); err != nil {
+		return
+	}
+	//
 	tr, err := s.db.OpenTransaction()
 	if err != nil {
 		return

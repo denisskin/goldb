@@ -171,7 +171,7 @@ func (c *context) LastRowID(tableID Entity) (rowID uint64, err error) {
 	return
 }
 
-//------ private ------
+// ------ private ------
 var tail1024 = bytes.Repeat([]byte{255}, 1024)
 
 func (c *context) execute(q *Query, fnRow func(rec Record) error) (err error) {
@@ -227,14 +227,13 @@ func (c *context) execute(q *Query, fnRow func(rec Record) error) (err error) {
 			}
 			skipFirst = false
 		}
-		val := iter.Value()
-		if fnRecordFilter != nil && !fnRecordFilter(Record{key, val}) {
+		if fnRecordFilter != nil && !fnRecordFilter(Record{key, iter.Value()}) {
 			continue
 		}
 		q.offset = key[pfxLen:]
 		limit--
 		if fnRow != nil {
-			if err = fnRow(Record{key, val}); err != nil {
+			if err = fnRow(Record{key, iter.Value()}); err != nil {
 				if err == Break {
 					err = nil
 				}
